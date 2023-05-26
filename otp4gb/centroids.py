@@ -1,4 +1,5 @@
 """Module for loading the zone centroids file."""
+from __future__ import annotations
 
 import dataclasses
 import logging
@@ -9,11 +10,39 @@ import geopandas as gpd
 import pandas as pd
 from shapely import geometry
 
-from otp4gb.config import Bounds
-
 
 LOG = logging.getLogger(__name__)
 _CENTROIDS_CRS = "EPSG:4326"
+
+
+class Bounds(NamedTuple):
+    """Bounding box."""
+
+    min_lat: float
+    min_lon: float
+    max_lat: float
+    max_lon: float
+
+    @classmethod
+    def from_dict(cls, data: dict[str, float]) -> Bounds:
+        values = []
+        missing = []
+        invalid = []
+        for nm in cls._fields:
+            if nm not in data:
+                missing.append(nm)
+            else:
+                try:
+                    values.append(float(data[nm]))
+                except ValueError:
+                    invalid.append(str(data[nm]))
+
+        if missing:
+            raise ValueError(f"missing values: {', '.join(missing)}")
+        if invalid:
+            raise TypeError(f"invalid values: {', '.join(invalid)}")
+
+        return cls(*values)
 
 
 class ZoneCentroidColumns(NamedTuple):
