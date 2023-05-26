@@ -3,7 +3,8 @@ import os
 import shutil
 import subprocess
 
-from otp4gb.config import BIN_DIR, ASSET_DIR, PREPARE_MAX_HEAP, Bounds
+from otp4gb.config import BIN_DIR, ASSET_DIR, PREPARE_MAX_HEAP
+from otp4gb.centroids import Bounds
 
 logger = logging.getLogger(__name__)
 

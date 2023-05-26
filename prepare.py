@@ -8,7 +8,8 @@ from yaml import safe_load
 
 from otp4gb.gtfs_filter import filter_gtfs_files
 from otp4gb.osmconvert import osm_convert
-from otp4gb.config import ASSET_DIR, CONF_DIR, load_config, write_build_config, Bounds
+from otp4gb.config import ASSET_DIR, CONF_DIR, load_config, write_build_config
+from otp4gb.centroids import Bounds
 from otp4gb.otp import prepare_graph
 
 logging.basicConfig(level=logging.DEBUG)

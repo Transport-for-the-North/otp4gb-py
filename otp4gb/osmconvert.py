@@ -2,7 +2,8 @@ import logging
 import os
 import subprocess
 
-from otp4gb.config import BIN_DIR, ROOT_DIR, Bounds
+from otp4gb.config import BIN_DIR, ROOT_DIR
+from otp4gb.centroids import Bounds
 
 logger = logging.getLogger(__name__)
 DOCKER = "OSMCONVERT_DOCKER" in os.environ
