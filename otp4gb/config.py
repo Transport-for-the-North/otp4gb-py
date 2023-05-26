@@ -74,8 +74,9 @@ class ProcessConfig(BaseConfig):
     gtfs_files: list[str]
     time_periods: list[TimePeriod]
     modes: list[list[routing.Mode]]
-    centroids: str
     generalised_cost_factors: cost.GeneralisedCostFactors
+    centroids: str
+    destination_centroids: Optional[str] = None
     iterinary_aggregation_method: cost.AggregationMethod = cost.AggregationMethod.MEAN
     max_walk_distance: int = 2500
     number_of_threads: pydantic.conint(ge=0, le=10) = 0

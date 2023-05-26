@@ -5,10 +5,8 @@ import os
 import pathlib
 import sys
 
-from shapely import geometry
-
 from otp4gb.centroids import load_centroids, ZoneCentroidColumns
-from otp4gb.config import ASSET_DIR, load_config, ProcessConfig
+from otp4gb.config import ASSET_DIR, load_config
 from otp4gb.logging import file_handler_factory, get_logger
 from otp4gb.otp import Server
 from otp4gb.util import Timer
@@ -55,19 +53,18 @@ def main():
 
     # Load Northern Boundaries
     logger.info("Loading centroids")
-    # TODO(MB) Read parameters for config to define column names
-    centroids_columns = ZoneCentroidColumns()
-    centroids = load_centroids(opt_centroids_path, zone_columns=centroids_columns)
-
-    # Filter MSOAs by bounding box
-    clip_box = geometry.box(
-        config.extents.min_lon,
-        config.extents.min_lat,
-        config.extents.max_lon,
-        config.extents.max_lat,
+    centroids = load_centroids(
+        opt_centroids_path,
+        config.destination_centroids,
+        # TODO(MB) Read parameters for config to define column names
+        zone_columns=ZoneCentroidColumns(),
+        extents=config.extents,
     )
-    centroids = centroids.clip(clip_box)
-    logger.info("Considering %d centroids", len(centroids))
+
+    logger.info(
+        "Considering %d centroids",
+        len(centroids.origins),
+    )
 
     for time_period in config.time_periods:
         search_window_seconds = None
@@ -96,7 +93,7 @@ def main():
                 arrive_by=True,
                 search_window_seconds=search_window_seconds,
                 max_walk_distance=config.max_walk_distance,
-                crowfly_max_distance=config.crowfly_max_distance
+                crowfly_max_distance=config.crowfly_max_distance,
             )
 
             matrix_path = pathlib.Path(
@@ -108,13 +105,12 @@ def main():
 
             cost.build_cost_matrix(
                 centroids,
-                centroids_columns,
                 cost_settings,
                 matrix_path,
                 config.generalised_cost_factors,
                 config.iterinary_aggregation_method,
                 config.number_of_threads,
-                config.crowfly_max_distance
+                config.crowfly_max_distance,
             )
 
     # Stop OTP Server
