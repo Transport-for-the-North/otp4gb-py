@@ -43,8 +43,6 @@ def main():
 
     config = load_config(opt_base_folder)
 
-    opt_centroids_path = os.path.join(ASSET_DIR, config.centroids)
-
     # Start OTP Server
     server = Server(opt_base_folder)
     if not config.no_server:
@@ -54,8 +52,8 @@ def main():
     # Load Northern Boundaries
     logger.info("Loading centroids")
     centroids = load_centroids(
-        opt_centroids_path,
-        os.path.join(ASSET_DIR, config.destination_centroids),
+        pathlib.Path(ASSET_DIR) / config.centroids,
+        pathlib.Path(ASSET_DIR) / config.destination_centroids,
         # TODO(MB) Read parameters for config to define column names
         zone_columns=ZoneCentroidColumns(),
         extents=config.extents,
