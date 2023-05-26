@@ -55,7 +55,7 @@ def main():
     logger.info("Loading centroids")
     centroids = load_centroids(
         opt_centroids_path,
-        config.destination_centroids,
+        os.path.join(ASSET_DIR, config.destination_centroids),
         # TODO(MB) Read parameters for config to define column names
         zone_columns=ZoneCentroidColumns(),
         extents=config.extents,
