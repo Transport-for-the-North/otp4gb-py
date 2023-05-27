@@ -98,7 +98,7 @@ def _calculate_distance_matrix(
     origins: gpd.GeoDataFrame, destinations: gpd.GeoDataFrame, crs: str
 ) -> pd.DataFrame:
     """Calculate distances between all `origins` and `destinations`.
-    
+
     Geometries are converted to `crs` before calculating distance.
     """
     distances = pd.DataFrame(
@@ -121,8 +121,8 @@ def _calculate_distance_matrix(
         )
         distances.rename(columns={"geometry": f"{name}_centroid"}, inplace=True)
 
-    distances.loc[:, "distance"] = distances["origin_centroid"].distance(
-        distances["destination_centroid"]
+    distances.loc[:, "distance"] = gpd.GeoSeries(distances["origin_centroid"]).distance(
+        gpd.GeoSeries(distances["destination_centroid"])
     )
 
     return distances.set_index(["origin", "destination"])["distance"]
