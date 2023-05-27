@@ -114,7 +114,7 @@ def _calculate_distance_matrix(
     for name, data in (("origin", origins), ("destination", destinations)):
         distances = distances.merge(
             data["geometry"],
-            left_index=name,
+            left_on=name,
             how="left",
             validate="m:1",
             right_index=True,
@@ -125,7 +125,7 @@ def _calculate_distance_matrix(
         distances["destination_centroid"]
     )
 
-    return distances["distance"]
+    return distances.set_index(["origin", "destination"])["distance"]
 
 
 def build_calculation_parameters(
