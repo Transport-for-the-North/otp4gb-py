@@ -156,12 +156,14 @@ def build_calculation_parameters(
     """
 
     def row_to_place(row: pd.Series) -> routing.Place:
+        geom = row.at["geometry"]
+
         return routing.Place(
-            name=row[zones.columns.name],
-            id=row.name,
-            zone_system=row[zones.columns.system],
-            lon=row["geometry"].y,
-            lat=row["geometry"].x,
+            name=str(row.at[zones.columns.name]),
+            id=str(row.at[zones.columns.id]),
+            zone_system=str(row.at[zones.columns.system]),
+            lon=geom.y,
+            lat=geom.x,
         )
 
     LOG.info("Building cost calculation parameters")
