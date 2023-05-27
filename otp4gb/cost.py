@@ -188,7 +188,7 @@ def build_calculation_parameters(
         if origin == destination and destinations is None:
             continue
 
-        if distances:
+        if distances is not None:
             distance = distances.at[origin, destination]
             if distance > crowfly_max_distance:
                 LOG.debug(
