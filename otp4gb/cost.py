@@ -208,11 +208,11 @@ def build_calculation_parameters(
                 server_url=settings.server_url,
                 modes=[str(m) for m in settings.modes],
                 datetime=settings.datetime,
-                origin=row_to_place(origins.loc[origin]),
+                origin=row_to_place(origins.loc[origin].reset_index()),
                 destination=row_to_place(
-                    origins.loc[destination]
+                    origins.loc[destination].reset_index()
                     if destinations is None
-                    else destinations.loc[destination]
+                    else destinations.loc[destination].reset_index()
                 ),
                 arrive_by=settings.arrive_by,
                 searchWindow=settings.search_window_seconds,
