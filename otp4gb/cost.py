@@ -156,14 +156,14 @@ def build_calculation_parameters(
     """
 
     def row_to_place(row: pd.Series) -> routing.Place:
-        geom = row.at["geometry"]
+        point = row.at["geometry"]
 
         return routing.Place(
             name=str(row.at[zones.columns.name]),
-            id=str(row.at[zones.columns.id]),
+            id=str(row.index),
             zone_system=str(row.at[zones.columns.system]),
-            lon=geom.y,
-            lat=geom.x,
+            lon=point.y,
+            lat=point.x,
         )
 
     LOG.info("Building cost calculation parameters")
@@ -208,11 +208,11 @@ def build_calculation_parameters(
                 server_url=settings.server_url,
                 modes=[str(m) for m in settings.modes],
                 datetime=settings.datetime,
-                origin=row_to_place(origins.loc[origin].reset_index()),
+                origin=row_to_place(origins.loc[origin]),
                 destination=row_to_place(
-                    origins.loc[destination].reset_index()
+                    origins.loc[destination]
                     if destinations is None
-                    else destinations.loc[destination].reset_index()
+                    else destinations.loc[destination]
                 ),
                 arrive_by=settings.arrive_by,
                 searchWindow=settings.search_window_seconds,
