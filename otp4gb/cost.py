@@ -5,7 +5,6 @@
 
 ##### IMPORTS #####
 # Standard imports
-import sys as base_sys
 import datetime
 import enum
 import io
@@ -14,7 +13,7 @@ import logging
 import pathlib
 import threading
 import os
-from typing import Any, NamedTuple, Optional
+from typing import Any, Iterator, NamedTuple, Optional
 
 # Third party imports
 import geopandas as gpd
@@ -31,9 +30,10 @@ from otp4gb import routing, util, centroids
 LOG = logging.getLogger(__name__)
 CROWFLY_DISTANCE_CRS = "EPSG:27700"
 
+# TODO(MB) These shouldn't be done outside a function as they stop this module from being imported
 # Name & Path to current run output folder to save compiled zone centroids
-output_dir_path = os.path.abspath(base_sys.argv[1])
-output_dir_name = os.path.basename(output_dir_path)
+# output_dir_path = os.path.abspath(base_sys.argv[1])
+# output_dir_name = os.path.basename(output_dir_path)
 
 
 ##### CLASSES #####
@@ -160,10 +160,10 @@ def build_calculation_parameters(
 
         return routing.Place(
             name=str(row.at[zones.columns.name]),
-            id=str(row.index),
+            id=str(row.name),
             zone_system=str(row.at[zones.columns.system]),
-            lon=point.y,
-            lat=point.x,
+            lon=point.x,
+            lat=point.y,
         )
 
     LOG.info("Building cost calculation parameters")
@@ -618,8 +618,8 @@ def calculate_costs(
         Cost statistics for the cost matrix.
     """
     rp_params = routing.RoutePlanParameters(
-        fromPlace=f"{parameters.origin.lon}, {parameters.origin.lat}",
-        toPlace=f"{parameters.destination.lon}, {parameters.destination.lat}",
+        fromPlace=f"{parameters.origin.lat}, {parameters.origin.lon}",
+        toPlace=f"{parameters.destination.lat}, {parameters.destination.lon}",
         date=parameters.datetime.date(),
         time=parameters.datetime.time(),
         mode=parameters.modes,
@@ -847,6 +847,23 @@ def build_cost_matrix(
 
     LOG.info("Written responses to %s", response_file)
     _write_matrix_files(matrix_data, matrix_file, aggregation_method)
+
+
+def iterate_responses(response_file: io.TextIOWrapper) -> Iterator[CostResults]:
+    """Iterate through and parse responses JSON lines file.
+
+    Parameters
+    ----------
+    response_file : io.TextIOWrapper
+        JSON lines file to read from.
+
+    Yields
+    ------
+    CostResults
+        Cost results for a single OD pair.
+    """
+    for line in response_file:
+        yield CostResults.parse_raw(line)
 
 
 def cost_matrix_from_responses(
