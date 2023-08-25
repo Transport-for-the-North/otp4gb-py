@@ -1,6 +1,12 @@
 # general dumping ground for stuff
 scratch/
 
+# bin directory
+bin/
+
+# assets directory
+assets/
+
 # Working directory for building zip files
 zip_tmp/
 
