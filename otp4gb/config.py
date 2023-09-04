@@ -52,7 +52,9 @@ class ProcessConfig(caf.toolkit.BaseConfig):
     iterinary_aggregation_method: cost.AggregationMethod = cost.AggregationMethod.MEAN
     max_walk_distance: int = 2500
     number_of_threads: pydantic.conint(ge=0, le=10) = 0
-    no_server: bool = False
+    no_server: Optional[bool] = False
+    hostname: Optional[str] = "localhost"
+    port: Optional[int] = 8080
     crowfly_max_distance: Optional[float] = None
     ruc_lookup: Optional[parameters.RUCLookup] = None
     irrelevant_destinations: Optional[parameters.IrrelevantDestinations] = None
@@ -65,7 +67,7 @@ class ProcessConfig(caf.toolkit.BaseConfig):
             return value
         return Bounds.from_dict(value)
 
-    @pydantic.validator("destination_centroids")
+    @pydantic.validator("destination_centroids", pre=True)
     def _empty_str(cls, value: str | None):
         # pylint disable=no-self-argument
         """Return None if string is empty, otherwise return string"""
@@ -73,6 +75,36 @@ class ProcessConfig(caf.toolkit.BaseConfig):
             return None
 
         return value
+
+    @pydantic.validator("crowfly_max_distance", pre=True)
+    def _empty_distance(cls, value: str | None):
+        # pylint disable=no-self-argument
+        """Returns None if string is empty, otherwise return string as float"""
+        if value is None or len(value.replace(" ", "")) == 0:
+            return None
+
+        return float(value)
+
+    @pydantic.validator("hostname", pre=True)
+    def _check_hostname(cls, value: str | None):
+        # pylint disable=no-self-argument
+        """Returns hostname 'localhost' unless `config.hostname` is specified"""
+        if value is None or len(value) == 0:
+            value = "localhost"
+            return value
+        else:
+            return value
+
+    @pydantic.validator("port", pre=True)
+    def _check_port(cls, value: int | None):
+        # pylint disable=no-self-argument
+        """Returns 8080 port unless `config.port` is specified"""
+        if value is None or len(str(value).replace(" ", "")) == 0:
+            value = 8080
+            return value
+        else:
+            return value
+
 
 def load_config(folder: pathlib.Path) -> ProcessConfig:
     """Read process config file."""
