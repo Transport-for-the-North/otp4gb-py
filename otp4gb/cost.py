@@ -126,7 +126,7 @@ def generalised_cost(
 ) -> None:
     """Calculate the generalised cost and update value in `itinerary`.
 
-    Times given in `itinerary` shoul be in seconds and are converted
+    Times given in `itinerary` should be in seconds and are converted
     to minutes for the calculation.
     Distances given in `itinerary` should be in metres and are converted
     to km for the calculation.
