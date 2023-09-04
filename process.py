@@ -80,7 +80,8 @@ def main():
 
     config = load_config(arguments.folder)
 
-    server = Server(arguments.folder)
+    # Start OTP server
+    server = Server(arguments.folder, hostname=config.hostname, port=config.port)
     if arguments.save_parameters:
         logger.info("Saving OTP request parameters without starting OTP")
     elif not config.no_server:
@@ -125,8 +126,11 @@ def main():
 
         for modes in config.modes:
             print()  # Empty line space in cmd window
+            logger.info(
+                "Calculating costs for %s - %s", time_period.name, ", ".join(modes)
+            )
             cost_settings = parameters.CostSettings(
-                server_url="http://localhost:8080",
+                server_url="http://" + config.hostname + ":" + config.port,
                 modes=modes,
                 datetime=travel_datetime,
                 arrive_by=True,
@@ -166,7 +170,7 @@ def main():
             )
             matrix_path.parent.mkdir(exist_ok=True, parents=True)
 
-            #TODO: Add requested trips here
+            # TODO: Add requested trips here
             jobs = parameters.build_calculation_parameters(
                 zones=centroids,
                 settings=cost_settings,
