@@ -7,10 +7,13 @@ import time
 import urllib.request
 import urllib.parse
 
-from otp4gb.config import BIN_DIR, PREPARE_MAX_HEAP, SERVER_MAX_HEAP
+from pydantic import BaseModel
+from pydantic.networks import AnyHttpUrl
+
+from otp4gb.config import BIN_DIR, PREPARE_MAX_HEAP, SERVER_MAX_HEAP, load_config
 
 logger = logging.getLogger(__name__)
-OTP_VERSION = "2.1.0"
+OTP_VERSION = "2.2.0"
 
 
 def _java_command(heap):
@@ -34,11 +37,17 @@ def prepare_graph(build_dir):
     subprocess.run(command, check=True)
 
 
+class CheckUrl(BaseModel):
+    """Check that provided hostname & port form a valid http request"""
+    url: AnyHttpUrl
+
+
 class Server:
-    def __init__(self, base_dir, port=8080):
+    def __init__(self, base_dir, port, hostname):
         self.base_dir = base_dir
         self.port = str(port)
         self.process = None
+        self.hostname = hostname
 
     def start(self):
         command = _java_command(SERVER_MAX_HEAP) + [
@@ -78,6 +87,16 @@ class Server:
 
     def send_request(self, path="", query=None):
         url = self.get_url(path, query)
+
+        # Check that a valid hostname & port were provided in config file
+        try:
+            CheckUrl(url=url)
+        except ValueError as e:
+            logger.error(
+                "Invalid url detected - check hostname and port in config\nurl:%s\nerror:%s", url, e
+            )
+            raise Exception("Invalid url detected - check hostname and port in config") from e
+
         logger.debug("About to make request to %s", url)
         request = urllib.request.Request(
             url,
@@ -94,7 +113,7 @@ class Server:
         url = urllib.parse.urlunsplit(
             [
                 "http",
-                "localhost:" + self.port,
+                self.hostname + ":" + self.port,
                 urllib.parse.urljoin("otp/routers/filtered/", path),
                 qs,
                 None,
