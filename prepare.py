@@ -1,3 +1,5 @@
+import subprocess
+import re
 from datetime import date, timedelta
 import getopt
 import logging
@@ -10,7 +12,7 @@ from otp4gb.gtfs_filter import filter_gtfs_files
 from otp4gb.osmconvert import osm_convert
 from otp4gb.config import ASSET_DIR, CONF_DIR, load_config, write_build_config
 from otp4gb.centroids import Bounds
-from otp4gb.otp import prepare_graph
+from otp4gb.otp import prepare_graph, OTP_VERSION
 
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger()
@@ -39,6 +41,28 @@ prepare.py [-F|--force] -b bounds -d date <path to config root>
 
 
 def main():
+    java_output = str(
+        subprocess.check_output(["java", "-version"], stderr=subprocess.STDOUT)
+    )
+
+    # RegEx pattern check looks for: digit.digit patterns (version numbers)
+    version_pattern = '"(\d+\.\d+).*"'
+    java_version = re.search(version_pattern, java_output).groups()[0]
+
+    # Check recommended java is being used for OTP version
+    if OTP_VERSION[0] == "2":
+        # Check java version is 17 (recommended for OTP2.X)
+        if java_version[0:2] != "17":
+            logger.warning(
+                "Java 17 recommended in OTP2.x for optimal performance."
+                " Java %s detected", java_version
+            )
+    elif OTP_VERSION[0] == "1":
+        if java_version[0] != "8":
+            logger.warning(
+                "Java 8 is recommended for OTP1.x. Java %s detected", java_version
+            )
+
     try:
         opts, args = getopt.getopt(sys.argv[1:], "b:d:F", ["bounds=", "date=", "force"])
     except getopt.GetoptError as err:
@@ -137,6 +161,7 @@ def main():
 
         write_build_config(filtered_graph_folder, opt_date)
         shutil.copy(os.path.join(CONF_DIR, "router-config.json"), filtered_graph_folder)
+        shutil.copy(os.path.join(CONF_DIR, "otp-config.json"), filtered_graph_folder)
 
     if os.path.exists(os.path.join(filtered_graph_folder, "graph.obj")):
         logging.warning(

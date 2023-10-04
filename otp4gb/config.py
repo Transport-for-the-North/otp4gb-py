@@ -37,6 +37,41 @@ class TimePeriod(pydantic.BaseModel):  # pylint: disable=no-member
     search_window_minutes: Optional[int] = None
 
 
+class IsochroneParams(pydantic.BaseModel):
+    """
+    Information required for traveltime isochrone request
+    """
+    departure_date_time: datetime.datetime
+    cutoffs_seconds: list[int]
+    modes: list[list[routing.Mode]]
+
+
+# class ProcessIsoConfig(caf.toolkit.BaseConfig):
+#     """Class for managing & parsing the YAML config file for Isochrones"""
+#
+#     departure_datetime: datetime.datetime
+#     cutoffs = list[int]
+#     modes = list[Any]
+#
+#     # @pydantic.validator("departure_datetime", pre=True)
+#     # def _check_datetime(cls, value: str):
+#     #     # pylint: disable=no-self-argument
+#     #     if not isinstance(value, datetime.datetime):
+#     #         # if departure_date_time is incorrect format, below will flag
+#     #         value = datetime.datetime.strptime(value, "%Y-%m-%d %H:%M")
+#     #         return value
+#     #     else:
+#     #         raise ValueError("""Expected non-zero length string in datetime""" +
+#     #                          """ format '%Y-%m-%d %H:%M', got %s""" % type(value))
+#
+#     @classmethod
+#     def _load_yaml(cls, file: pathlib.Path) -> ProcessIsoConfig:
+#         """Loads in isochrone YAML config"""
+#         with open(file, "r") as file:
+#             config = yaml.safe_load(file)
+#             return config
+#
+
 class ProcessConfig(caf.toolkit.BaseConfig):
     """Class for managing (and parsing) the YAML config file."""
 
@@ -52,11 +87,22 @@ class ProcessConfig(caf.toolkit.BaseConfig):
     iterinary_aggregation_method: cost.AggregationMethod = cost.AggregationMethod.MEAN
     max_walk_distance: int = 2500
     number_of_threads: pydantic.conint(ge=0, le=10) = 0
-    no_server: bool = False
+    no_server: Optional[bool] = False
+    hostname: Optional[str] = "localhost"
+    port: Optional[int] = 8080
     crowfly_max_distance: Optional[float] = None
     ruc_lookup: Optional[parameters.RUCLookup] = None
     irrelevant_destinations: Optional[parameters.IrrelevantDestinations] = None
     previous_trips: Optional[parameters.PreviousTrips] = None
+    # TODO(JH): Create ProcessIsoConfig class
+    # Isochrone params below
+    iso_centroids: str
+    iso_lat_col: str
+    iso_long_col: str
+    iso_id_col: str
+    iso_datetime: datetime.datetime
+    cutoffs: list[int]
+    iso_modes: list[list[routing.Mode]]
 
     # Makes a classmethod not recognised by pylint, hence disabling self check
     @pydantic.validator("extents", pre=True)
@@ -67,12 +113,68 @@ class ProcessConfig(caf.toolkit.BaseConfig):
 
     @pydantic.validator("destination_centroids")
     def _empty_str(cls, value: str | None):
-        # pylint disable=no-self-argument
+        # pylint: disable=no-self-argument
         """Return None if string is empty, otherwise return string"""
         if value is None or len(value) == 0:
             return None
 
         return value
+
+    @pydantic.validator("crowfly_max_distance", pre=True)
+    def _empty_distance(cls, value: str | None):
+        # pylint: disable=no-self-argument
+        """Returns None if string is empty, otherwise return string as float"""
+        if value is None or len(value.replace(" ", "")) == 0:
+            return None
+
+        return float(value)
+
+    @pydantic.validator("hostname", pre=True)
+    def _check_hostname(cls, value: str | None):
+        # pylint: disable=no-self-argument
+        """Returns hostname 'localhost' unless `config.hostname` is specified"""
+        if value is None or len(value) == 0:
+            value = "localhost"
+            return value
+        else:
+            return value
+
+    @pydantic.validator("port", pre=True)
+    def _check_port(cls, value: int | None):
+        # pylint disable=no-self-argument
+        """Returns 8080 port unless `config.port` is specified"""
+        if value is None or len(str(value).replace(" ", "")) == 0:
+            value = 8080
+            return value
+        else:
+            return value
+
+    @pydantic.validator("iso_datetime", pre=True)
+    def _check_datetime(cls, value: str):
+        # pylint: disable=no-self-argument
+        if not isinstance(value, datetime.datetime):
+            # if iso_datetime is incorrect format, below will flag
+            value = datetime.datetime.strptime(value, "%Y-%m-%d %H:%M")
+            return value
+        else:
+            raise ValueError("""Expected non-zero length string in datetime with""" +
+                             """ format '%Y-%m-%d %H:%M', got %s""" % value)
+
+    @pydantic.validator("cutoffs")
+    def _check_cutoffs(cls, cutoff_list: list):
+        # pylint: disable=no-self-argument
+        """Converts supplied cutoffs (int - secs) to datetime.timedelta (secs)"""
+        for i, cutoff in enumerate(cutoff_list):
+            if not isinstance(cutoff, int):
+                cutoff = int(cutoff)
+                cutoff_list[i] = cutoff
+
+            if not isinstance(cutoff, datetime.timedelta):
+                cutoff = datetime.timedelta(seconds=cutoff)
+                cutoff_list[i] = cutoff
+
+        return cutoff_list
+
 
 def load_config(folder: pathlib.Path) -> ProcessConfig:
     """Read process config file."""

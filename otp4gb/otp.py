@@ -3,6 +3,7 @@ import logging
 import os
 import subprocess
 import time
+import sys
 
 import urllib.request
 import urllib.parse
@@ -10,7 +11,7 @@ import urllib.parse
 from otp4gb.config import BIN_DIR, PREPARE_MAX_HEAP, SERVER_MAX_HEAP
 
 logger = logging.getLogger(__name__)
-OTP_VERSION = "2.1.0"
+OTP_VERSION = "2.2.0"
 
 
 def _java_command(heap):
@@ -50,13 +51,13 @@ class Server:
         logger.info("Starting OTP server")
         logger.debug("About to run server with %s", command)
         self.process = subprocess.Popen(
-            command, cwd=self.base_dir, stdout=subprocess.DEVNULL
+            command, cwd=self.base_dir, stdout=sys.stdout, stderr=sys.stderr
         )
         atexit.register(lambda: self.stop())
         self._check_server()
         logger.info("OTP server started")
 
-    def _check_server(self):
+    def _check_server(self, TIMEOUT = 30, MAX_RETRIES=10):
         logger.info("Checking server")
         TIMEOUT = 30
         MAX_RETRIES = 10
