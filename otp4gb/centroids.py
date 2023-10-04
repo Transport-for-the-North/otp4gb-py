@@ -70,9 +70,13 @@ def _read_centroids(
 ) -> gpd.GeoDataFrame:
     """Read centroids CSV and convert to GeoDataFrame."""
     data = pd.read_csv(path, usecols=zone_columns + [longitude_column, latitude_column])
-
+    # Below results in isochrone requests as long, lat - trowing out of bounds java error
+    #points = data.apply(
+    #    lambda x: geometry.Point([x[longitude_column], x[latitude_column]]), axis=1
+    #)
+    # TODO(JH): Check if swapping LAT & LONG has broke the default route planner
     points = data.apply(
-        lambda x: geometry.Point([x[longitude_column], x[latitude_column]]), axis=1
+        lambda x: geometry.Point([x[latitude_column], x[longitude_column]]), axis=1
     )
     data = gpd.GeoDataFrame(
         data.loc[:, zone_columns],
