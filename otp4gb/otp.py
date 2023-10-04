@@ -57,7 +57,7 @@ class Server:
         self._check_server()
         logger.info("OTP server started")
 
-    def _check_server(self):
+    def _check_server(self, TIMEOUT = 30, MAX_RETRIES=10):
         logger.info("Checking server")
         TIMEOUT = 30
         MAX_RETRIES = 10
