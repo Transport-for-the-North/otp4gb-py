@@ -14,12 +14,12 @@ FORMAT_STRING = (
     "%(asctime)s.%(msecs)03d:%(levelname)s:%(processName)s:%(module)s:%(message)s"
 )
 
-# logging.basicConfig(format=FORMAT_STRING, datefmt="%H:%M:%S")
+logging.basicConfig(format=FORMAT_STRING, datefmt="%H:%M:%S")
 
-# flat_formatter = logging.Formatter(FORMAT_STRING, "%H:%M:%S")
+flat_formatter = logging.Formatter(FORMAT_STRING, "%H:%M:%S")
 
-# stderr_handler = logging.StreamHandler(stream=sys.stderr)
-# stderr_handler.setFormatter(flat_formatter)
+stderr_handler = logging.StreamHandler(stream=sys.stderr)
+stderr_handler.setFormatter(flat_formatter)
 
 
 def file_handler_factory(filename, dir=LOG_DIR, level=logging.INFO):
