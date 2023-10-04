@@ -33,7 +33,6 @@ OTP_ERRORS = {
 }
 
 
-
 ##### CLASSES #####
 class Mode(enum.StrEnum):
     TRANSIT = "TRANSIT"
@@ -42,6 +41,8 @@ class Mode(enum.StrEnum):
     TRAM = "TRAM"
     WALK = "WALK"
     BICYCLE = "BICYCLE"
+    # Added to combine with WALK for isochrone requests
+    FERRY = "FERRY"
 
     @staticmethod
     def transit_modes() -> set[Mode]:
@@ -289,6 +290,20 @@ def request(
         req = requests.Request("GET", url, params=params)
         prepared = req.prepare()
 
+        # If requesting an Isochrone, the prepared URL is incorrectly formatted
+        # Currently, departure time contains "+" between time & timezone, this should be "T"
+
+        # RegEx pattern to find the departure time in the prepared url
+        pattern = "time=([^&]+)&cutoff="
+
+        # Subset the departure time from matches (should only be one time, hence group(1))
+        departure_time = re.search(pattern, prepared.url).group(1)
+
+        prepared.url = prepared.url.replace(
+            departure_time,
+            departure_time.replace("+", "T"),
+            )
+
         try:
             session = requests.Session()
             response = session.send(prepared, timeout=timeout)
@@ -304,7 +319,7 @@ def request(
             response = FakeResponse(
                 url=prepared.url,
                 status_code=-10,
-                reason=f"{error.__class__.__name__}: {error}",
+                message=f"{error.__class__.__name__}: {error}",
                 retry=retries,
             )
 
