@@ -80,7 +80,8 @@ def main():
 
     config = load_config(arguments.folder)
 
-    server = Server(arguments.folder)
+    # Start OTP Server
+    server = Server(opt_base_folder, hostname=config.hostname, port=config.port)
     if arguments.save_parameters:
         logger.info("Saving OTP request parameters without starting OTP")
     elif not config.no_server:
@@ -125,8 +126,11 @@ def main():
 
         for modes in config.modes:
             print()  # Empty line space in cmd window
-            cost_settings = parameters.CostSettings(
-                server_url="http://localhost:8080",
+            logger.info(
+                "Calculating costs for %s - %s", time_period.name, ", ".join(modes)
+            )
+            cost_settings = cost.CostSettings(
+                server_url="http://" + config.hostname + ":" + str(config.port),
                 modes=modes,
                 datetime=travel_datetime,
                 arrive_by=True,

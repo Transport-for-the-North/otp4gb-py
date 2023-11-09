@@ -36,10 +36,11 @@ def prepare_graph(build_dir):
 
 
 class Server:
-    def __init__(self, base_dir, port=8080):
+    def __init__(self, base_dir, port=8080, hostname="localhost" ):
         self.base_dir = base_dir
         self.port = str(port)
         self.process = None
+        self.hostname = hostname
 
     def start(self):
         command = _java_command(SERVER_MAX_HEAP) + [
@@ -95,7 +96,7 @@ class Server:
         url = urllib.parse.urlunsplit(
             [
                 "http",
-                "localhost:" + self.port,
+                self.hostname + ":" + self.port,
                 urllib.parse.urljoin("otp/routers/filtered/", path),
                 qs,
                 None,
