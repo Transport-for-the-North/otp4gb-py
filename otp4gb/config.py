@@ -1,4 +1,5 @@
-"""Functionality for handling the YAML config file."""
+"""Functionality for handling the YAML config files and OTP config files."""
+
 from __future__ import annotations
 
 import datetime
@@ -6,20 +7,22 @@ import json
 import logging
 import os
 import pathlib
+import pprint
 from typing import Optional
 
+import caf.toolkit as ctk
 import pydantic
-import caf.toolkit
+import strictyaml
 
 from otp4gb import cost, parameters, routing, util
 from otp4gb.centroids import Bounds
-
 
 ROOT_DIR = pathlib.Path().absolute()
 BIN_DIR = ROOT_DIR / "bin"
 CONF_DIR = ROOT_DIR / "config"
 ASSET_DIR = ROOT_DIR / "assets"
 LOG_DIR = ROOT_DIR / "logs"
+BOUNDS_PATH = pathlib.Path(__file__).parent / "bounds.yml"
 
 # if you're running on a virtual machine (no virtual memory/page disk)
 # this must not exceed the total amount of RAM.
@@ -37,7 +40,7 @@ class TimePeriod(pydantic.BaseModel):  # pylint: disable=no-member
     search_window_minutes: Optional[int] = None
 
 
-class ProcessConfig(caf.toolkit.BaseConfig):
+class ProcessConfig(ctk.BaseConfig):
     """Class for managing (and parsing) the YAML config file."""
 
     date: datetime.date
@@ -74,10 +77,29 @@ class ProcessConfig(caf.toolkit.BaseConfig):
 
         return value
 
+
 def load_config(folder: pathlib.Path) -> ProcessConfig:
     """Read process config file."""
     file = pathlib.Path(folder) / "config.yml"
-    return ProcessConfig.load_yaml(file)
+    config = ProcessConfig.load_yaml(file)
+
+    LOG.info("Loaded config from %s\n%s", file, config.to_yaml())
+    return config
+
+
+def load_bounds() -> dict[str, Bounds]:
+    """Load custom bounds from YAML file."""
+    with open(BOUNDS_PATH, "rt", encoding="utf-8") as bounds_file:
+        bounds = strictyaml.load(bounds_file.read()).data
+
+    for nm, values in bounds.items():
+        bounds[nm] = Bounds.from_dict(values)
+
+    LOG.debug(
+        "Loaded pre-defined bounds from %s\n%s", BOUNDS_PATH, pprint.pformat(bounds)
+    )
+
+    return bounds
 
 
 def write_build_config(
