@@ -1,12 +1,12 @@
 import atexit
+import datetime as dt
 import logging
 import os
 import pathlib
 import subprocess
 import time
-
-import urllib.request
 import urllib.parse
+import urllib.request
 
 from otp4gb.config import BIN_DIR, PREPARE_MAX_HEAP, SERVER_MAX_HEAP
 
@@ -32,7 +32,13 @@ def prepare_graph(build_dir):
     command = _java_command(PREPARE_MAX_HEAP) + ["--build", build_dir, "--save"]
     logger.info("Running OTP build command")
     logger.debug(command)
-    subprocess.run(command, check=True)
+
+    log_path = (
+        pathlib.Path(build_dir) / f"logs/otp_prepare-{dt.datetime.today():%Y%m%d}.log"
+    )
+    log_path.parent.mkdir(exist_ok=True)
+    with open(log_path, "at", encoding="utf-8") as file:
+        subprocess.run(command, check=True, stdout=file, stderr=subprocess.STDOUT)
 
 
 class Server:
@@ -41,7 +47,9 @@ class Server:
         self.port = str(port)
         self.process = None
 
-        log_path = pathlib.Path(base_dir) / "logs/otp_server.log"
+        log_path = (
+            pathlib.Path(base_dir) / f"logs/otp_server-{dt.datetime.today():%Y%m%d}.log"
+        )
         log_path.parent.mkdir(exist_ok=True)
         self.log_fo = open(log_path, "at", encoding="utf-8")
 
