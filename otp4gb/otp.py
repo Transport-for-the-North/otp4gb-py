@@ -1,6 +1,7 @@
 import atexit
 import logging
 import os
+import pathlib
 import subprocess
 import time
 
@@ -40,6 +41,10 @@ class Server:
         self.port = str(port)
         self.process = None
 
+        log_path = pathlib.Path(base_dir) / "logs/otp_server.log"
+        log_path.parent.mkdir(exist_ok=True)
+        self.log_fo = open(log_path, "at", encoding="utf-8")
+
     def start(self):
         command = _java_command(SERVER_MAX_HEAP) + [
             r"graphs\filtered",
@@ -50,7 +55,7 @@ class Server:
         logger.info("Starting OTP server")
         logger.debug("About to run server with %s", command)
         self.process = subprocess.Popen(
-            command, cwd=self.base_dir, stdout=subprocess.DEVNULL
+            command, cwd=self.base_dir, stdout=self.log_fo, stderr=subprocess.STDOUT
         )
         atexit.register(lambda: self.stop())
         self._check_server()
@@ -109,4 +114,5 @@ class Server:
         logger.info("Stopping OTP server")
         self.process.terminate()
         self.process.wait(timeout=60)
+        self.log_fo.close()
         logger.info("OTP server stopped")
