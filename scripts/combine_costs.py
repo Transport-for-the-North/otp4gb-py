@@ -3,30 +3,29 @@
 
 ##### IMPORTS #####
 from __future__ import annotations
-import argparse
 
+import argparse
+import logging
 import pathlib
 import sys
 
-from caf import toolkit
 import numpy as np
 import pandas as pd
 import pydantic
-from pydantic import types, dataclasses
-
-from otp4gb import config
+from caf import toolkit
+from pydantic import dataclasses, types
 
 sys.path.extend((".", ".."))
 # pylint: disable=wrong-import-position
 import otp4gb
-from otp4gb import logging
+from otp4gb import config
 from scripts import infill_costs
 
 # pylint: enable=wrong-import-position
 
 
 ##### CONSTANTS #####
-LOG = logging.get_logger(otp4gb.__package__ + ".combine_costs")
+LOG = logging.getLogger(otp4gb.__package__ + ".combine_costs")
 
 
 ##### CLASSES #####
@@ -182,74 +181,77 @@ def load_costs(path: pathlib.Path, zones: np.ndarray) -> pd.Series:
 
 
 def main(parameters: CombineCostsParameters) -> None:
-    logging.initialise_logger(
-        otp4gb.__package__, parameters.output_folder / "infill_costs.log"
-    )
-    LOG.info("Combining cost matrices")
+    log_file = parameters.output_folder / "infill_costs.log"
 
-    output_path = parameters.output_folder / "combine_costs_config.yml"
-    parameters.save_yaml(output_path)
-    LOG.debug("Saved parameters to %s", output_path)
+    details = toolkit.ToolDetails(otp4gb.__package__, otp4gb.__version__)
+    with toolkit.LogHelper(otp4gb.__package__, details, log_file=log_file):
+        LOG.info("Combining cost matrices")
 
-    otp_params = config.load_config(parameters.otp4gb_config_path.parent)
+        output_path = parameters.output_folder / "combine_costs_config.yml"
+        parameters.save_yaml(output_path)
+        LOG.debug("Saved parameters to %s", output_path)
 
-    origin_path = config.ASSET_DIR / otp_params.centroids
-    destination_path = None
-    if otp_params.destination_centroids is not None:
-        destination_path = config.ASSET_DIR / otp_params.destination_centroids
+        otp_params = config.load_config(parameters.otp4gb_config_path.parent)
 
-    distances = infill_costs.calculate_crow_fly(origin_path, destination_path, None)
-    distances = distances / 1000
-    distances.name = "Crow-Fly Distance (km)"
+        origin_path = config.ASSET_DIR / otp_params.centroids
+        destination_path = None
+        if otp_params.destination_centroids is not None:
+            destination_path = config.ASSET_DIR / otp_params.destination_centroids
 
-    zones = distances.index.get_level_values("origin").unique().values
-    cutoffs = parameters.crow_fly_cutoff_km
+        distances = infill_costs.calculate_crow_fly(origin_path, destination_path, None)
+        distances = distances / 1000
+        distances.name = "Crow-Fly Distance (km)"
 
-    for i, cost_files in enumerate(parameters.costs_to_combine, 1):
-        LOG.info("Combining costs %s", i)
-        base_cost = load_costs(cost_files.base, zones)
-        base_cost.name = "base_cost"
-        other_cost = load_costs(cost_files.other, zones)
-        other_cost.name = "other_cost"
-        costs = pd.concat([base_cost, other_cost], axis=1)
+        zones = distances.index.get_level_values("origin").unique().values
+        cutoffs = parameters.crow_fly_cutoff_km
 
-        combined_cost = pd.Series(np.nan, index=distances.index, name="combined_cost")
+        for i, cost_files in enumerate(parameters.costs_to_combine, 1):
+            LOG.info("Combining costs %s", i)
+            base_cost = load_costs(cost_files.base, zones)
+            base_cost.name = "base_cost"
+            other_cost = load_costs(cost_files.other, zones)
+            other_cost.name = "other_cost"
+            costs = pd.concat([base_cost, other_cost], axis=1)
 
-        # Assign values outside cutoff range to individual cost
-        mask = distances <= cutoffs.base
-        combined_cost.loc[mask] = base_cost[mask]
-        mask = distances >= cutoffs.other
-        combined_cost.loc[mask] = other_cost[mask]
+            combined_cost = pd.Series(
+                np.nan, index=distances.index, name="combined_cost"
+            )
 
-        # Calculates weighted average for distances inside cutoff range
-        mask = (cutoffs.base < distances) & (distances < cutoffs.other)
+            # Assign values outside cutoff range to individual cost
+            mask = distances <= cutoffs.base
+            combined_cost.loc[mask] = base_cost[mask]
+            mask = distances >= cutoffs.other
+            combined_cost.loc[mask] = other_cost[mask]
 
-        # Weights are based on the difference from the cutoffs to the crow-fly distance
-        # i.e. the base weight is the difference from the other cutoff so values
-        # closer to other cutoff have a lower base weight
-        base_weight = cutoffs.other - distances[mask]
-        base_weight.name = "base_weight"
-        other_weight = distances[mask] - cutoffs.base
-        other_weight.name = "other_weight"
-        weights = pd.concat([base_weight, other_weight], axis=1)
+            # Calculates weighted average for distances inside cutoff range
+            mask = (cutoffs.base < distances) & (distances < cutoffs.other)
 
-        combined_cost.loc[mask] = np.average(costs[mask], axis=1, weights=weights)
+            # Weights are based on the difference from the cutoffs to the crow-fly distance
+            # i.e. the base weight is the difference from the other cutoff so values
+            # closer to other cutoff have a lower base weight
+            base_weight = cutoffs.other - distances[mask]
+            base_weight.name = "base_weight"
+            other_weight = distances[mask] - cutoffs.base
+            other_weight.name = "other_weight"
+            weights = pd.concat([base_weight, other_weight], axis=1)
 
-        costs.loc[:, "mean_cost"] = costs.mean(axis=1)
-        metrics = pd.concat([distances, weights, costs, combined_cost], axis=1)
+            combined_cost.loc[mask] = np.average(costs[mask], axis=1, weights=weights)
 
-        cost_files.output.parent.mkdir(exist_ok=True)
+            costs.loc[:, "mean_cost"] = costs.mean(axis=1)
+            metrics = pd.concat([distances, weights, costs, combined_cost], axis=1)
 
-        combined_cost = combined_cost.unstack("destination")
-        combined_cost.to_csv(cost_files.output)
-        LOG.info("Written combined cost: %s", cost_files.output)
+            cost_files.output.parent.mkdir(exist_ok=True)
 
-        out_path = cost_files.output.with_name(
-            cost_files.output.stem + "-calculation.csv"
-        )
-        metrics.to_csv(out_path)
-        LOG.info("Written calculation values to: %s", out_path)
-        LOG.info("Finished combining %s", i)
+            combined_cost = combined_cost.unstack("destination")
+            combined_cost.to_csv(cost_files.output)
+            LOG.info("Written combined cost: %s", cost_files.output)
+
+            out_path = cost_files.output.with_name(
+                cost_files.output.stem + "-calculation.csv"
+            )
+            metrics.to_csv(out_path)
+            LOG.info("Written calculation values to: %s", out_path)
+            LOG.info("Finished combining %s", i)
 
 
 def _run() -> None:

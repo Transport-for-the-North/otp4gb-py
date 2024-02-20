@@ -10,6 +10,7 @@ import pathlib
 
 from caf.toolkit import log_helpers
 
+import otp4gb
 from otp4gb import otp
 
 ##### CONSTANTS #####
@@ -95,8 +96,7 @@ def main() -> None:
     parser = create_argument_parser()
     args = parser.parse_args()
 
-    # TODO(MB) Define package version somewhere
-    details = log_helpers.ToolDetails(__package__, "0.1.0")
+    details = log_helpers.ToolDetails(__package__, otp4gb.__version__)
 
     output_folder: pathlib.Path = args.folder
     log_file = output_folder / f"logs/otp4gb-{dt.date.today():%Y%m%d}.log"

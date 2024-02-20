@@ -8,6 +8,7 @@ import argparse
 import datetime
 import enum
 import functools
+import logging
 import pathlib
 import re
 import sys
@@ -27,10 +28,10 @@ from scipy import optimize
 
 sys.path.extend((".", ".."))
 import otp4gb
-from otp4gb import centroids, config, cost, logging, parameters
+from otp4gb import centroids, config, cost, parameters
 
 ##### CONSTANTS #####
-LOG = logging.get_logger(otp4gb.__package__ + ".infill_costs")
+LOG = logging.getLogger(otp4gb.__package__ + ".infill_costs")
 MARKER_SIZE = 10
 
 
@@ -1035,76 +1036,78 @@ def main(
     FileNotFoundError
         If the cost metrics file can't be found.
     """
-    logging.initialise_logger(
-        otp4gb.__package__,
-        folder / f"logs/infill_costs-{datetime.date.today():%Y%m%d}.log",
-    )
-    LOG.info("Infilling %s", folder)
+    log_file = folder / f"logs/infill_costs-{datetime.date.today():%Y%m%d}.log"
 
-    origin_path = config.ASSET_DIR / params.centroids
-    destination_path = None
-    if params.destination_centroids is not None:
-        destination_path = config.ASSET_DIR / params.destination_centroids
+    details = caf.toolkit.ToolDetails(otp4gb.__package__, otp4gb.__version__)
+    with caf.toolkit.LogHelper(otp4gb.__package__, details, log_file=log_file):
+        LOG.info("Infilling %s", folder)
 
-    distances = calculate_crow_fly(origin_path, destination_path, None)
-    distances = distances / 1000
-    distances.name = "Crow-Fly Distance (km)"
+        origin_path = config.ASSET_DIR / params.centroids
+        destination_path = None
+        if params.destination_centroids is not None:
+            destination_path = config.ASSET_DIR / params.destination_centroids
 
-    infill_folder_name = f"infilled - {datetime.date.today():%Y%m%d}"
+        distances = calculate_crow_fly(origin_path, destination_path, None)
+        distances = distances / 1000
+        distances.name = "Crow-Fly Distance (km)"
 
-    for time_period in params.time_periods:
-        travel_datetime = datetime.datetime.combine(
-            params.date, time_period.travel_time
-        )
-        # Assume time is in local timezone
-        travel_datetime = travel_datetime.astimezone()
-        LOG.info(
-            "Given date / time is assumed to be in local timezone: %s",
-            travel_datetime.tzinfo,
-        )
+        infill_folder_name = f"infilled - {datetime.date.today():%Y%m%d}"
 
-        for modes in params.modes:
-            matrix_path = folder / (
-                f"costs/{time_period.name}/"
-                f"{'_'.join(modes)}_costs_{travel_datetime:%Y%m%dT%H%M}.csv"
+        for time_period in params.time_periods:
+            travel_datetime = datetime.datetime.combine(
+                params.date, time_period.travel_time
             )
-            metrics_path = matrix_path.with_name(matrix_path.stem + "-metrics.csv")
-
-            if not metrics_path.is_file():
-                raise FileNotFoundError(metrics_path)
-
-            infill_folder = metrics_path.parent / infill_folder_name
-            infill_folder.mkdir(exist_ok=True)
-            LOG.info("Created output folder: %s", infill_folder)
-
-            crow_fly_path = infill_folder / "crow-fly_distances.csv"
-            distances.unstack("destination").to_csv(crow_fly_path)
-            LOG.info("Written: %s", crow_fly_path.name)
-
-            recalculated_path = matrix_path.with_name(
-                matrix_path.stem + "-recalculated.csv"
+            # Assume time is in local timezone
+            travel_datetime = travel_datetime.astimezone()
+            LOG.info(
+                "Given date / time is assumed to be in local timezone: %s",
+                travel_datetime.tzinfo,
             )
-            recalculated_metrics_path = recalculated_path.with_name(
-                recalculated_path.stem + "-metrics.csv"
-            )
-            if not recalculated_metrics_path.is_file():
-                LOG.info("Recalculating costs: '%s'", metrics_path.name)
-                cost.cost_matrix_from_responses(
-                    metrics_path.with_name(matrix_path.name + "-response_data.jsonl"),
-                    recalculated_path,
-                    params.iterinary_aggregation_method,
+
+            for modes in params.modes:
+                matrix_path = folder / (
+                    f"costs/{time_period.name}/"
+                    f"{'_'.join(modes)}_costs_{travel_datetime:%Y%m%dT%H%M}.csv"
                 )
+                metrics_path = matrix_path.with_name(matrix_path.stem + "-metrics.csv")
 
-            infill_costs(
-                recalculated_metrics_path,
-                infill_params.infill_columns,
-                distances,
-                infill_folder,
-                methods=infill_params.infill_methods,
-                zero_zones=list(infill_params.zero_cost_zones),
-                outlier_method=infill_params.outlier_method,
-                outlier_cutoff=infill_params.outlier_cutoff,
-            )
+                if not metrics_path.is_file():
+                    raise FileNotFoundError(metrics_path)
+
+                infill_folder = metrics_path.parent / infill_folder_name
+                infill_folder.mkdir(exist_ok=True)
+                LOG.info("Created output folder: %s", infill_folder)
+
+                crow_fly_path = infill_folder / "crow-fly_distances.csv"
+                distances.unstack("destination").to_csv(crow_fly_path)
+                LOG.info("Written: %s", crow_fly_path.name)
+
+                recalculated_path = matrix_path.with_name(
+                    matrix_path.stem + "-recalculated.csv"
+                )
+                recalculated_metrics_path = recalculated_path.with_name(
+                    recalculated_path.stem + "-metrics.csv"
+                )
+                if not recalculated_metrics_path.is_file():
+                    LOG.info("Recalculating costs: '%s'", metrics_path.name)
+                    cost.cost_matrix_from_responses(
+                        metrics_path.with_name(
+                            matrix_path.name + "-response_data.jsonl"
+                        ),
+                        recalculated_path,
+                        params.iterinary_aggregation_method,
+                    )
+
+                infill_costs(
+                    recalculated_metrics_path,
+                    infill_params.infill_columns,
+                    distances,
+                    infill_folder,
+                    methods=infill_params.infill_methods,
+                    zero_zones=list(infill_params.zero_cost_zones),
+                    outlier_method=infill_params.outlier_method,
+                    outlier_cutoff=infill_params.outlier_cutoff,
+                )
 
 
 def _run() -> None:
