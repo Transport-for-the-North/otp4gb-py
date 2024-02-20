@@ -11,11 +11,12 @@ import time
 import urllib.parse
 import urllib.request
 
-from otp4gb import centroids, config, cost, gtfs_filter, osmconvert, parameters
+from otp4gb import centroids, config, cost, gtfs_filter, osmconvert, parameters, util
 
 LOG = logging.getLogger(__name__)
 OTP_VERSION = "2.1.0"
-GRAPH_FILE_SUBPATH = "graphs/filtered/graph.obj"
+GRAPH_FILE_NAME = "graph.obj"
+GRAPH_FILE_SUBPATH = f"graphs/filtered/{GRAPH_FILE_NAME}"
 
 
 def _java_command(heap):
@@ -32,17 +33,30 @@ def _java_command(heap):
     ]
 
 
-def prepare_graph(build_dir):
+def prepare_graph(build_dir: pathlib.Path) -> None:
     """Run OTP build command to create graph.obj file."""
-    log_path = pathlib.Path(build_dir) / f"otp_prepare-{dt.datetime.today():%Y%m%d}.log"
-    LOG.info("Running OTP build command, log messages saved to '%s'", log_path)
+    build_dir = pathlib.Path(build_dir)
+    build_dir.mkdir(exist_ok=True)
+
+    log_path = build_dir / f"otp_prepare-{dt.datetime.today():%Y%m%d}.log"
+    LOG.info(
+        "Running OTP build command, this may take some time especially"
+        " for larger areas (national)\nLog messages saved to '%s'",
+        log_path,
+    )
 
     command = _java_command(config.PREPARE_MAX_HEAP) + ["--build", build_dir, "--save"]
     LOG.debug("OTP build command: %s", " ".join(str(i) for i in command))
 
-    log_path.parent.mkdir(exist_ok=True)
+    timer = util.Timer()
     with open(log_path, "at", encoding="utf-8") as file:
         subprocess.run(command, check=True, stdout=file, stderr=subprocess.STDOUT)
+
+    graph_file = build_dir / GRAPH_FILE_NAME
+    if graph_file.is_file():
+        LOG.info("Finished creating OTP graph file in %s: '%s'", timer, graph_file)
+    else:
+        raise FileNotFoundError(f"error creating OTP graph: '{graph_file}'")
 
 
 class Server:
@@ -145,11 +159,6 @@ def run_server(*, folder: pathlib.Path, **_) -> None:
     input("\n\nPress any key to stop server...\n\n")
 
     server.stop()
-
-
-def _check_graph(folder: pathlib.Path) -> bool:
-    graph_path = folder / GRAPH_FILE_SUBPATH
-    return graph_path.is_file()
 
 
 def _prepare(folder: pathlib.Path, params: config.ProcessConfig, force: bool) -> None:
@@ -346,7 +355,7 @@ def run_process(
         LOG.warning("bounds argument provided, which is used instead of config value")
         params.extents = custom_bounds[bounds]
 
-    if prepare or force or not _check_graph(folder):
+    if prepare or force or not (folder / GRAPH_FILE_SUBPATH).is_file():
         _prepare(folder, params, force)
 
     if prepare:
