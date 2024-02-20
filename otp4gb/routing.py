@@ -3,9 +3,8 @@
 
 ##### IMPORTS #####
 from __future__ import annotations
-import dataclasses
 
-# Standard imports
+import dataclasses
 import datetime
 import enum
 import logging
@@ -35,16 +34,20 @@ OTP_ERRORS = {
 
 ##### CLASSES #####
 class Mode(enum.StrEnum):
+    """Possible routing modes."""
+
     TRANSIT = "TRANSIT"
     BUS = "BUS"
     RAIL = "RAIL"
     TRAM = "TRAM"
     WALK = "WALK"
     BICYCLE = "BICYCLE"
+    FERRY = "FERRY"
 
     @staticmethod
     def transit_modes() -> set[Mode]:
-        return {Mode.TRANSIT, Mode.BUS, Mode.RAIL, Mode.TRAM}
+        """Public transit modes."""
+        return {Mode.TRANSIT, Mode.BUS, Mode.RAIL, Mode.TRAM, Mode.FERRY}
 
 
 class RoutePlanParameters(pydantic.BaseModel):
