@@ -2,10 +2,10 @@ import logging
 import os
 import subprocess
 
-from otp4gb.config import BIN_DIR, ROOT_DIR
 from otp4gb.centroids import Bounds
+from otp4gb.config import BIN_DIR, ROOT_DIR
 
-logger = logging.getLogger(__name__)
+LOG = logging.getLogger(__name__)
 DOCKER = "OSMCONVERT_DOCKER" in os.environ
 
 
@@ -33,10 +33,11 @@ def _command(input_, bounds, output):
 
 
 def osm_convert(input_, output, extents: Bounds):
-    bounds = f"{extents.min_lon},{extents.min_lat},{extents.max_lon},{extents.max_lat}"
-    logger.debug(bounds)
+    LOG.info("Running osmconvert to filter '%s'\n%s", input_, extents)
 
+    bounds = f"{extents.min_lon},{extents.min_lat},{extents.max_lon},{extents.max_lat}"
     expr = _command(input_, bounds, output)
-    logger.info("Running osmconvert")
-    logger.debug("commandline = %s", " ".join(expr))
+    LOG.debug("commandline = %s", " ".join(str(i) for i in expr))
+
     subprocess.run(expr, check=True)
+    LOG.info("Created filterd OSM file '%s'", output)

@@ -21,7 +21,6 @@ import tqdm
 from otp4gb import routing, util
 from otp4gb.parameters import CalculationParameters
 
-
 ##### CONSTANTS #####
 LOG = logging.getLogger(__name__)
 
@@ -325,7 +324,7 @@ def iterate_responses(response_file: io.TextIOWrapper) -> Iterator[CostResults]:
         Cost results for a single OD pair.
     """
     for line in response_file:
-        yield CostResults.parse_raw(line)
+        yield CostResults.model_validate_json(line)
 
 
 def cost_matrix_from_responses(
@@ -349,15 +348,13 @@ def cost_matrix_from_responses(
 
     LOG.info("Compiling %s OTP response files", len(responses_files))
     for responses_file in responses_files:
-        LOG.info("Processing file %s",
-                 responses_file)
+        LOG.info("Processing file %s", responses_file)
         with open(responses_file, "rt", encoding=util.TEXT_ENCODING) as responses:
             for line in tqdm.tqdm(
-                    responses, desc="Calculating cost matrix", dynamic_ncols=True
+                responses, desc="Calculating cost matrix", dynamic_ncols=True
             ):
-                results = CostResults.parse_raw(line)
+                results = CostResults.model_validate_json(line)
                 # TODO(MB) Recalculate generalised cost if new parameters are provided
                 matrix_data.append(_matrix_costs(results))
 
     _write_matrix_files(matrix_data, matrix_file, aggregation_method)
-

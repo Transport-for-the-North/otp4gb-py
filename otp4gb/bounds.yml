@@ -14,10 +14,10 @@ scotland:
   min_lat: 54.6
   max_lat: 80
 gb:
-  min_lon: -10
-  max_lon: 10
-  min_lat: 40
-  max_lat: 80
+  min_lon: -7
+  max_lon: -0.4
+  min_lat: 49
+  max_lat: 61
 north_england_zone_of_influence:
   min_lon: -3.7731
   max_lon: 0.3797

@@ -57,12 +57,13 @@ def create_argument_parser() -> argparse.ArgumentParser:
         help="force recreation of the OTP graph file",
     )
     process_parser.add_argument(
-        "-p",
+        "-s",
         "--save_parameters",
         action="store_true",
         help="save build parameters to JSON lines files and exit",
     )
     process_parser.add_argument(
+        "-p",
         "--prepare",
         action="store_true",
         help="prepare the OTP graph and GTFS files without running routing analysis",

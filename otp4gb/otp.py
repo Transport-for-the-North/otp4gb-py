@@ -33,11 +33,13 @@ def _java_command(heap):
 
 
 def prepare_graph(build_dir):
-    command = _java_command(config.PREPARE_MAX_HEAP) + ["--build", build_dir, "--save"]
-    LOG.info("Running OTP build command")
-    LOG.debug(command)
-
+    """Run OTP build command to create graph.obj file."""
     log_path = pathlib.Path(build_dir) / f"otp_prepare-{dt.datetime.today():%Y%m%d}.log"
+    LOG.info("Running OTP build command, log messages saved to '%s'", log_path)
+
+    command = _java_command(config.PREPARE_MAX_HEAP) + ["--build", build_dir, "--save"]
+    LOG.debug("OTP build command: %s", " ".join(str(i) for i in command))
+
     log_path.parent.mkdir(exist_ok=True)
     with open(log_path, "at", encoding="utf-8") as file:
         subprocess.run(command, check=True, stdout=file, stderr=subprocess.STDOUT)
@@ -49,11 +51,11 @@ class Server:
         self.port = str(port)
         self.process = None
 
-        log_path = (
+        self.log_path = (
             pathlib.Path(base_dir) / f"logs/otp_server-{dt.datetime.today():%Y%m%d}.log"
         )
-        log_path.parent.mkdir(exist_ok=True)
-        self.log_fo = open(log_path, "at", encoding="utf-8")
+        self.log_path.parent.mkdir(exist_ok=True)
+        self.log_fo = open(self.log_path, "at", encoding="utf-8")
 
     def start(self):
         command = _java_command(config.SERVER_MAX_HEAP) + [
@@ -62,12 +64,12 @@ class Server:
             "--port",
             self.port,
         ]
-        LOG.info("Starting OTP server")
-        LOG.debug("About to run server with %s", command)
+        LOG.info("Starting OTP server, log messages saved to '%s'", self.log_path)
+        LOG.debug("Running server with %s", " ".join(str(i) for i in command))
         self.process = subprocess.Popen(
             command, cwd=self.base_dir, stdout=self.log_fo, stderr=subprocess.STDOUT
         )
-        atexit.register(lambda: self.stop())
+        atexit.register(self.stop)
         self._check_server()
         LOG.info("OTP server started")
 
@@ -82,9 +84,11 @@ class Server:
                 self.send_request()
                 LOG.info("Server responded")
                 server_up = True
+
             except urllib.error.URLError as error:
                 if retries > MAX_RETRIES:
-                    raise Exception("Maximum retries exceeded")
+                    raise urllib.error.URLError("Maximum retries exceeded") from error
+
                 retries += 1
                 LOG.info(
                     "Server not available. Retry %s. Server error: %s", retries, error
@@ -154,22 +158,25 @@ def _prepare(folder: pathlib.Path, params: config.ProcessConfig, force: bool) ->
     graph_file = folder / GRAPH_FILE_SUBPATH
 
     if graph_file.parent.is_dir() and force:
-        LOG.info("Deleting '%s' folder and recreating because force flag was given")
+        LOG.info(
+            "Deleting '%s' folder and recreating because force flag was given",
+            graph_file.parent,
+        )
         shutil.rmtree(graph_file.parent)
 
     if graph_file.is_file():
         LOG.info(
-            "Graph file already exists and will be used (%s). "
-            "To rebuild graph file use the force flag",
+            "Graph file already exists and will be used (%s)."
+            " To rebuild graph file use the 'force' flag",
             graph_file,
         )
         return
 
     if graph_file.parent.is_dir():
         raise FileNotFoundError(
-            "graph.obj file doesn't exist but folder does, unsure "
-            "why this is the case. Please fix this or use the 'force' "
-            "flag to rebuild everything."
+            "graph.obj file doesn't exist but folder does, unsure why"
+            " this is the case. Please fix this or use the 'force'"
+            " flag to rebuild everything."
         )
 
     graph_file.parent.mkdir(parents=True)
