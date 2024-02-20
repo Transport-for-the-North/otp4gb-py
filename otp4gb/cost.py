@@ -115,7 +115,7 @@ def calculate_costs(
         request_url=url,
     )
     with lock:
-        response_file.write(cost_res.json() + "\n")
+        response_file.write(cost_res.model_dump_json() + "\n")
 
     return _matrix_costs(cost_res)
 
@@ -292,7 +292,7 @@ def build_cost_matrix(
             dict(
                 response_file=responses,
                 lock=lock,
-                generalised_cost_parameters=generalised_cost_parameters.copy(),
+                generalised_cost_parameters=generalised_cost_parameters.model_copy(),
             ),
         )
 

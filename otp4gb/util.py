@@ -3,11 +3,12 @@
 
 import concurrent.futures
 import datetime
+import logging
 import multiprocessing
 import time
 from typing import Callable, Iterator, Optional, TypeVar
 
-
+LOG = logging.getLogger(__name__)
 TEXT_ENCODING = "utf-8"
 
 T = TypeVar("T")
@@ -106,5 +107,8 @@ def multithread_function(
                     result = r.result()
                     yield result
                 except Exception:
+                    LOG.error(
+                        "Error in thread, shutting down all threads", exc_info=True
+                    )
                     executor.shutdown(wait=False, cancel_futures=True)
                     raise

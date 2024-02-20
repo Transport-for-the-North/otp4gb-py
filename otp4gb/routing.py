@@ -235,39 +235,40 @@ def get_route_itineraries(
     retries = 0
     error_message = []
     end = False
-    while True:
+
+    with requests.Session() as session:
         req = requests.Request("GET", url, params=parameters.params())
-        prepared = req.prepare()
+        prepared = session.prepare_request(req)
 
-        try:
-            session = requests.Session()
-            response = session.send(prepared, timeout=REQUEST_TIMEOUT)
-        except requests.exceptions.RequestException as error:
-            msg = f"{error.__class__.__name__}: {error}"
-            add_error(msg)
-            response = _FakeResponse(url=prepared.url, status_code=-10, reason=msg)
+        while True:
+            try:
+                response = session.send(prepared, timeout=REQUEST_TIMEOUT)
+            except requests.exceptions.RequestException as error:
+                msg = f"{error.__class__.__name__}: {error}"
+                add_error(msg)
+                response = _FakeResponse(url=prepared.url, status_code=-10, reason=msg)
 
-        if response.status_code == requests.codes.OK:
-            result = RoutePlanResults.parse_raw(response.text)
-            if result.error is None:
+            if response.status_code == requests.codes.OK:
+                result = RoutePlanResults.model_validate_json(response.text)
+                if result.error is None:
+                    return response.url, result
+                if result.error.id in OTP_ERRORS.values():
+                    return response.url, result
+
+                add_error(
+                    f"OTP Error {result.error.id}: {result.error.msg} {result.error.message}"
+                )
+
+            if end or retries > REQUEST_RETRIES:
+                error_message.append("max retries reached")
+                result = RoutePlanResults(
+                    requestParameters=parameters,
+                    error=RoutePlanError(
+                        id=response.status_code,
+                        msg=f"Response {response.status_code}: {response.reason}",
+                        message="\n".join(error_message),
+                    ),
+                )
                 return response.url, result
-            if result.error.id in OTP_ERRORS.values():
-                return response.url, result
 
-            add_error(
-                f"OTP Error {result.error.id}: {result.error.msg} {result.error.message}"
-            )
-
-        if end or retries > REQUEST_RETRIES:
-            error_message.append("max retries reached")
-            result = RoutePlanResults(
-                requestParameters=parameters,
-                error=RoutePlanError(
-                    id=response.status_code,
-                    msg=f"Response {response.status_code}: {response.reason}",
-                    message="\n".join(error_message),
-                ),
-            )
-            return response.url, result
-
-        retries += 1
+            retries += 1
