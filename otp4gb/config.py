@@ -53,13 +53,14 @@ class ProcessConfig(ctk.BaseConfig):
     centroids: str
     destination_centroids: Optional[str] = None
     iterinary_aggregation_method: cost.AggregationMethod = cost.AggregationMethod.MEAN
-    max_walk_distance: int = 2500
-    number_of_threads: pydantic.conint(ge=0, le=10) = 0
+    max_walk_distance: int = pydantic.Field(2500, ge=0)
+    number_of_threads: int = pydantic.Field(0, ge=0, le=10)
     no_server: bool = False
     crowfly_max_distance: Optional[float] = None
     ruc_lookup: Optional[parameters.RUCLookup] = None
     irrelevant_destinations: Optional[parameters.IrrelevantDestinations] = None
     previous_trips: Optional[parameters.PreviousTrips] = None
+    write_raw_responses: bool = True
 
     # Makes a classmethod not recognised by pylint, hence disabling self check
     @pydantic.validator("extents", pre=True)

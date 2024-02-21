@@ -58,9 +58,9 @@ class GeneralisedCostFactors(pydantic.BaseModel):  # pylint: disable=no-member
 ##### FUNCTIONS #####
 def calculate_costs(
     parameters: CalculationParameters,
-    response_file: io.TextIOWrapper,
-    lock: threading.Lock,
     generalised_cost_parameters: GeneralisedCostFactors,
+    response_file: io.TextIOWrapper | None = None,
+    lock: threading.Lock | None = None,
 ) -> dict[str, Any]:
     """Calculate cost between 2 zones using OTP.
 
@@ -68,14 +68,16 @@ def calculate_costs(
     ----------
     parameters : CalculationParameters
         Parameters for OTP.
-    response_file : io.TextIOWrapper
-        File to save the JSON response too.
-    lock : threading.Lock
-        Lock object to avoid race conditions when writing
-        to `response_file`.
     generalised_cost_parameters : GeneralisedCostParameters
         Factors and other parameters for calculating the
         generalised cost.
+    response_file : io.TextIOWrapper, optional
+        File to save the JSON response too, if None
+        JSON responses won't be saved to a file.
+    lock : threading.Lock, optional
+        Lock object to avoid race conditions when writing
+        to `response_file`, ignored if `response_file` is None
+        but mandatory otherwise.
 
     Returns
     -------
@@ -114,8 +116,12 @@ def calculate_costs(
         error=result.error,
         request_url=url,
     )
-    with lock:
-        response_file.write(cost_res.model_dump_json() + "\n")
+    if response_file is not None:
+        if lock is None:
+            raise ValueError("lock is required if response_file is not None")
+
+        with lock:
+            response_file.write(cost_res.model_dump_json() + "\n")
 
     return _matrix_costs(cost_res)
 
@@ -257,12 +263,45 @@ def _write_matrix_files(
     LOG.info("Written %s generalised cost matrix to %s", aggregation, matrix_file)
 
 
+def _build_cost_matrix_internal(
+    jobs: list[CalculationParameters],
+    generalised_cost_parameters: GeneralisedCostFactors,
+    workers: int,
+    responses_fo: io.TextIOWrapper | None = None,
+    lock: threading.Lock | None = None,
+) -> list[dict[str, Any]]:
+    """Run `calculate_costs` for all jobs, using multiple threads."""
+    iterator: Iterator[dict[str, Any]] = util.multithread_function(
+        workers,
+        calculate_costs,
+        jobs,
+        dict(
+            response_file=responses_fo,
+            lock=lock,
+            generalised_cost_parameters=generalised_cost_parameters.model_copy(),
+        ),
+    )
+
+    matrix_data = []
+    for res in tqdm.tqdm(
+        iterator,
+        total=len(jobs),
+        desc="Calculating costs",
+        dynamic_ncols=True,
+        smoothing=0,
+    ):
+        matrix_data.append(res)
+
+    return matrix_data
+
+
 def build_cost_matrix(
     jobs: list[CalculationParameters],
     matrix_file: pathlib.Path,
     generalised_cost_parameters: GeneralisedCostFactors,
     aggregation_method: AggregationMethod,
     workers: int = 0,
+    write_raw_responses: bool = True,
 ) -> None:
     """Create cost matrix for all zone to zone pairs.
 
@@ -279,32 +318,29 @@ def build_cost_matrix(
         Aggregation method used for generalised cost matrix.
     workers : int, default 0
         Number of threads to create during calculations.
+    write_raw_responses : bool, default True
+        If True, write raw responses data to a JSON lines file with
+        the path "{matrix_file}-response_data.jsonl".
     """
     LOG.info("Calculating costs for %s", matrix_file.name)
 
-    lock = threading.Lock()
-    response_file = matrix_file.with_name(matrix_file.name + "-response_data.jsonl")
-    with open(response_file, "wt", encoding=util.TEXT_ENCODING) as responses:
-        iterator = util.multithread_function(
-            workers,
-            calculate_costs,
-            jobs,
-            dict(
-                response_file=responses,
-                lock=lock,
-                generalised_cost_parameters=generalised_cost_parameters.model_copy(),
-            ),
-        )
+    if write_raw_responses:
+        response_file = matrix_file.with_name(f"{matrix_file.stem}-response_data.jsonl")
+        with open(response_file, "wt", encoding=util.TEXT_ENCODING) as responses:
+            matrix_data = _build_cost_matrix_internal(
+                jobs=jobs,
+                generalised_cost_parameters=generalised_cost_parameters,
+                workers=workers,
+                responses_fo=responses,
+                lock=threading.Lock(),
+            )
 
-        matrix_data = []
-        for res in tqdm.tqdm(
-            iterator,
-            total=len(jobs),
-            desc="Calculating costs",
-            dynamic_ncols=True,
-            smoothing=0,
-        ):
-            matrix_data.append(res)
+    else:
+        matrix_data = _build_cost_matrix_internal(
+            jobs=jobs,
+            generalised_cost_parameters=generalised_cost_parameters,
+            workers=workers,
+        )
 
     LOG.info("Written responses to %s", response_file)
     _write_matrix_files(matrix_data, matrix_file, aggregation_method)

@@ -184,8 +184,7 @@ class Itinerary(pydantic.BaseModel):
     generalised_cost: Optional[float] = None
     # arrivedAtDestinationWithRentedBicycle: bool
 
-    class Config:
-        allow_population_by_field_name = True
+    model_config = pydantic.ConfigDict(populate_by_name=True)
 
 
 class Plan(pydantic.BaseModel):
@@ -194,8 +193,7 @@ class Plan(pydantic.BaseModel):
     to: Place
     itineraries: list[Itinerary]
 
-    class Config:
-        allow_population_by_field_name = True
+    model_config = pydantic.ConfigDict(populate_by_name=True)
 
 
 class RoutePlanError(pydantic.BaseModel):

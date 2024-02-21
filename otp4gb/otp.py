@@ -312,6 +312,7 @@ def _process(folder: pathlib.Path, save_parameters: bool, params: config.Process
                 generalised_cost_parameters=params.generalised_cost_factors,
                 aggregation_method=params.iterinary_aggregation_method,
                 workers=params.number_of_threads,
+                write_raw_responses=params.write_raw_responses,
             )
 
     # Stop OTP Server
