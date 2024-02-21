@@ -2,6 +2,8 @@
 """Functionality for building list of calculation parameters."""
 
 ##### IMPORTS #####
+from __future__ import annotations
+
 import dataclasses
 import datetime
 import itertools
@@ -198,14 +200,16 @@ def _load_ruc_lookup(data: RUCLookup, zones: np.ndarray) -> pd.Series:
     """Load RUC lookup data into Series of weights to apply."""
     LOG.info("Loading RUC lookup from %s", data.path.name)
 
-    lookup_data = pd.read_csv(ASSET_DIR / data.path, usecols=[data.id_column, data.ruc_column])
+    lookup_data = pd.read_csv(
+        ASSET_DIR / data.path, usecols=[data.id_column, data.ruc_column]
+    )
 
     lookup: pd.Series = lookup_data.set_index(data.id_column, verify_integrity=True)[
         data.ruc_column
     ]
 
     matched_zones = zones[np.isin(zones, lookup.index)]
-    unmatched_zones = zones[~ np.isin(zones, lookup.index)]
+    unmatched_zones = zones[~np.isin(zones, lookup.index)]
 
     if (len(matched_zones) == len(zones)) & (len(unmatched_zones) == 0):
         # All zones have been matched to a ruc code.
@@ -213,9 +217,9 @@ def _load_ruc_lookup(data: RUCLookup, zones: np.ndarray) -> pd.Series:
         #   apply the distance weighting calculation
 
         lookup_data = lookup_data.loc[lookup_data[data.id_column].isin(matched_zones)]
-        lookup: pd.Series = lookup_data.set_index(data.id_column, verify_integrity=True)[
-            data.ruc_column
-        ]
+        lookup: pd.Series = lookup_data.set_index(
+            data.id_column, verify_integrity=True
+        )[data.ruc_column]
 
         LOG.info(f"{len(zones)} zones matched to RUC classifications successfully")
 
@@ -261,7 +265,7 @@ def _load_previous_trips(data: PreviousTrips) -> set:
 
 
 def _load_irrelevant_destinations(
-        data: IrrelevantDestinations, zones: np.ndarray
+    data: IrrelevantDestinations, zones: np.ndarray
 ) -> np.ndarray | None:
     """Load array of destinations to exclude, return None if file is empty."""
     LOG.info("Loading irrelevant destinations from %s", data.path.name)
@@ -270,14 +274,13 @@ def _load_irrelevant_destinations(
     irrelevant = irrelevant_data[data.zone_column].unique()
 
     if len(irrelevant) == 0:
-        raise ValueError("%s file is empty. Please provide a file with data" %
-                         data.path)
+        raise ValueError(
+            "%s file is empty. Please provide a file with data" % data.path
+        )
 
     matched_irrelevant = np.isin(irrelevant, zones)
 
-    LOG.info("Given %s unique destinations to exclude",
-             len(matched_irrelevant)
-             )
+    LOG.info("Given %s unique destinations to exclude", len(matched_irrelevant))
 
     if len(matched_irrelevant) == 0:
         return None
@@ -286,15 +289,15 @@ def _load_irrelevant_destinations(
 
 
 def _build_calculation_parameters_iter(
-        settings: CostSettings,
-        columns: centroids.ZoneCentroidColumns,
-        origins: gpd.GeoDataFrame,
-        destinations: gpd.GeoDataFrame | None = None,
-        irrelevant_destinations: np.ndarray | None = None,
-        distances: pd.DataFrame | None = None,
-        distance_factors: pd.Series | None = None,
-        previous_trips_set: set | None = None,
-        progress_bar: bool = True,
+    settings: CostSettings,
+    columns: centroids.ZoneCentroidColumns,
+    origins: gpd.GeoDataFrame,
+    destinations: gpd.GeoDataFrame | None = None,
+    irrelevant_destinations: np.ndarray | None = None,
+    distances: pd.DataFrame | None = None,
+    distance_factors: pd.Series | None = None,
+    previous_trips_set: set | None = None,
+    progress_bar: bool = True,
 ) -> Iterator[CalculationParameters]:
     """Generate calculation parameters, internal function for `build_calculation_parameters`."""
 
@@ -329,7 +332,7 @@ def _build_calculation_parameters_iter(
         if distances is not None:
             od_pairs = distances.loc[
                 distances <= settings.crowfly_max_distance
-                ].index.to_frame(index=False)
+            ].index.to_frame(index=False)
             LOG.info(
                 "Dropped %s requests with crow-fly distance > %s (%s remaining)",
                 f"{len(distances) - len(od_pairs):,}",
@@ -364,7 +367,7 @@ def _build_calculation_parameters_iter(
 
         # Remove previously requested trips
         remove = od_pairs["od_code"].isin(previous_trips_set)
-        od_pairs = od_pairs.loc[~ remove]
+        od_pairs = od_pairs.loc[~remove]
 
         LOG.info(
             "Dropped %s OD pairs for being previously requested. %s remaining",
@@ -407,12 +410,12 @@ def _build_calculation_parameters_iter(
 
 
 def build_calculation_parameters(
-        zones: centroids.ZoneCentroids,
-        settings: CostSettings,
-        ruc_lookup: RUCLookup | None = None,
-        irrelevant_destinations: IrrelevantDestinations | None = None,
-        previous_trips: PreviousTrips | None = None,
-        crowfly_distance_crs: str = CROWFLY_DISTANCE_CRS,
+    zones: centroids.ZoneCentroids,
+    settings: CostSettings,
+    ruc_lookup: RUCLookup | None = None,
+    irrelevant_destinations: IrrelevantDestinations | None = None,
+    previous_trips: PreviousTrips | None = None,
+    crowfly_distance_crs: str = CROWFLY_DISTANCE_CRS,
 ) -> list[CalculationParameters]:
     """Build a list of parameters for running `calculate_costs`.
 
@@ -512,10 +515,10 @@ def build_calculation_parameters(
 
 
 def save_calculation_parameters(
-        zones: centroids.ZoneCentroids,
-        settings: CostSettings,
-        output_file: pathlib.Path,
-        **kwargs,
+    zones: centroids.ZoneCentroids,
+    settings: CostSettings,
+    output_file: pathlib.Path,
+    **kwargs,
 ) -> pathlib.Path:
     """Build calibration parameters and save to JSON lines file.
 
