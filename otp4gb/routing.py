@@ -34,15 +34,28 @@ OTP_ERRORS = {
 
 ##### CLASSES #####
 class Mode(enum.StrEnum):
-    """Possible routing modes."""
+    """Possible routing modes for OpenTripPlanner.
 
-    TRANSIT = "TRANSIT"
-    BUS = "BUS"
-    RAIL = "RAIL"
-    TRAM = "TRAM"
+    Details on their definitions are available on OpenTripPlanner's
+    website: https://docs.opentripplanner.org/en/v2.3.0/RoutingModes/
+    """
+
     WALK = "WALK"
+    TRANSIT = "TRANSIT"
     BICYCLE = "BICYCLE"
+    BICYCLE_RENT = "BICYCLE_RENT"
+    BICYCLE_PARK = "BICYCLE_PARK"
+    CAR = "CAR"
+    CAR_PARK = "CAR_PARK"
+    TRAM = "TRAM"
+    SUBWAY = "SUBWAY"
+    RAIL = "RAIL"
+    BUS = "BUS"
     FERRY = "FERRY"
+    CABLE_CAR = "CABLE_CAR"
+    GONDOLA = "GONDOLA"
+    FUNICULAR = "FUNICULAR"
+    AIRPLANE = "AIRPLANE"
 
     @staticmethod
     def transit_modes() -> set[Mode]:
