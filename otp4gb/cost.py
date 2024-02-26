@@ -207,12 +207,10 @@ def _matrix_costs(result: CostResults) -> dict:
             values.append(val)
 
         matrix_values[f"mean_{s}"] = np.nanmean(values)
-
-        if matrix_values["number_itineraries"] > 1:
-            matrix_values[f"median_{s}"] = np.nanmedian(values)
-            matrix_values[f"min_{s}"] = np.nanmin(values)
-            matrix_values[f"max_{s}"] = np.nanmax(values)
-            matrix_values[f"num_nans_{s}"] = np.sum(np.isnan(values))
+        matrix_values[f"median_{s}"] = np.nanmedian(values)
+        matrix_values[f"min_{s}"] = np.nanmin(values)
+        matrix_values[f"max_{s}"] = np.nanmax(values)
+        matrix_values[f"num_nans_{s}"] = np.sum(np.isnan(values))
 
     matrix_values["min_startTime"] = min(i.startTime for i in result.plan.itineraries)
     matrix_values["max_startTime"] = max(i.startTime for i in result.plan.itineraries)
@@ -337,6 +335,8 @@ def build_cost_matrix(
                 lock=threading.Lock(),
             )
 
+        LOG.info("Written responses to %s", response_file)
+
     else:
         matrix_data = _build_cost_matrix_internal(
             jobs=jobs,
@@ -344,7 +344,6 @@ def build_cost_matrix(
             workers=workers,
         )
 
-    LOG.info("Written responses to %s", response_file)
     _write_matrix_files(matrix_data, matrix_file, aggregation_method)
 
 
