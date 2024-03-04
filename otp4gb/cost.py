@@ -323,6 +323,7 @@ def build_cost_matrix(
         the path "{matrix_file}-response_data.jsonl".
     """
     LOG.info("Calculating costs for %s", matrix_file.name)
+    timer = util.Timer()
 
     if write_raw_responses:
         response_file = matrix_file.with_name(f"{matrix_file.stem}-response_data.jsonl")
@@ -345,6 +346,7 @@ def build_cost_matrix(
         )
 
     _write_matrix_files(matrix_data, matrix_file, aggregation_method)
+    LOG.info("Done calculating costs in %s", timer)
 
 
 def iterate_responses(response_file: io.TextIOWrapper) -> Iterator[CostResults]:
