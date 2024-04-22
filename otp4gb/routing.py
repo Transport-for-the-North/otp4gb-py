@@ -248,7 +248,6 @@ def get_route_itineraries(
 
     retries = 0
     error_message = []
-    end = False
 
     with requests.Session() as session:
         req = requests.Request("GET", url, params=parameters.params())
@@ -273,7 +272,7 @@ def get_route_itineraries(
                     f"OTP Error {result.error.id}: {result.error.msg} {result.error.message}"
                 )
 
-            if end or retries > REQUEST_RETRIES:
+            if retries > REQUEST_RETRIES:
                 error_message.append("max retries reached")
                 result = RoutePlanResults(
                     requestParameters=parameters,
