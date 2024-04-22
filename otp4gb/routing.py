@@ -3,9 +3,8 @@
 
 ##### IMPORTS #####
 from __future__ import annotations
-import dataclasses
 
-# Standard imports
+import dataclasses
 import datetime
 import enum
 import logging
@@ -35,16 +34,33 @@ OTP_ERRORS = {
 
 ##### CLASSES #####
 class Mode(enum.StrEnum):
-    TRANSIT = "TRANSIT"
-    BUS = "BUS"
-    RAIL = "RAIL"
-    TRAM = "TRAM"
+    """Possible routing modes for OpenTripPlanner.
+
+    Details on their definitions are available on OpenTripPlanner's
+    website: https://docs.opentripplanner.org/en/v2.3.0/RoutingModes/
+    """
+
     WALK = "WALK"
+    TRANSIT = "TRANSIT"
     BICYCLE = "BICYCLE"
+    BICYCLE_RENT = "BICYCLE_RENT"
+    BICYCLE_PARK = "BICYCLE_PARK"
+    CAR = "CAR"
+    CAR_PARK = "CAR_PARK"
+    TRAM = "TRAM"
+    SUBWAY = "SUBWAY"
+    RAIL = "RAIL"
+    BUS = "BUS"
+    FERRY = "FERRY"
+    CABLE_CAR = "CABLE_CAR"
+    GONDOLA = "GONDOLA"
+    FUNICULAR = "FUNICULAR"
+    AIRPLANE = "AIRPLANE"
 
     @staticmethod
     def transit_modes() -> set[Mode]:
-        return {Mode.TRANSIT, Mode.BUS, Mode.RAIL, Mode.TRAM}
+        """Public transit modes."""
+        return {Mode.TRANSIT, Mode.BUS, Mode.RAIL, Mode.TRAM, Mode.FERRY}
 
 
 class RoutePlanParameters(pydantic.BaseModel):
@@ -168,8 +184,7 @@ class Itinerary(pydantic.BaseModel):
     generalised_cost: Optional[float] = None
     # arrivedAtDestinationWithRentedBicycle: bool
 
-    class Config:
-        allow_population_by_field_name = True
+    model_config = pydantic.ConfigDict(populate_by_name=True)
 
 
 class Plan(pydantic.BaseModel):
@@ -178,8 +193,7 @@ class Plan(pydantic.BaseModel):
     to: Place
     itineraries: list[Itinerary]
 
-    class Config:
-        allow_population_by_field_name = True
+    model_config = pydantic.ConfigDict(populate_by_name=True)
 
 
 class RoutePlanError(pydantic.BaseModel):
@@ -234,40 +248,40 @@ def get_route_itineraries(
 
     retries = 0
     error_message = []
-    end = False
-    while True:
+
+    with requests.Session() as session:
         req = requests.Request("GET", url, params=parameters.params())
-        prepared = req.prepare()
+        prepared = session.prepare_request(req)
 
-        try:
-            session = requests.Session()
-            response = session.send(prepared, timeout=REQUEST_TIMEOUT)
-        except requests.exceptions.RequestException as error:
-            msg = f"{error.__class__.__name__}: {error}"
-            add_error(msg)
-            response = _FakeResponse(url=prepared.url, status_code=-10, reason=msg)
+        while True:
+            try:
+                response = session.send(prepared, timeout=REQUEST_TIMEOUT)
+            except requests.exceptions.RequestException as error:
+                msg = f"{error.__class__.__name__}: {error}"
+                add_error(msg)
+                response = _FakeResponse(url=prepared.url, status_code=-10, reason=msg)
 
-        if response.status_code == requests.codes.OK:
-            result = RoutePlanResults.parse_raw(response.text)
-            if result.error is None:
+            if response.status_code == requests.codes.OK:
+                result = RoutePlanResults.model_validate_json(response.text)
+                if result.error is None:
+                    return response.url, result
+                if result.error.id in OTP_ERRORS.values():
+                    return response.url, result
+
+                add_error(
+                    f"OTP Error {result.error.id}: {result.error.msg} {result.error.message}"
+                )
+
+            if retries > REQUEST_RETRIES:
+                error_message.append("max retries reached")
+                result = RoutePlanResults(
+                    requestParameters=parameters,
+                    error=RoutePlanError(
+                        id=response.status_code,
+                        msg=f"Response {response.status_code}: {response.reason}",
+                        message="\n".join(error_message),
+                    ),
+                )
                 return response.url, result
-            if result.error.id in OTP_ERRORS.values():
-                return response.url, result
 
-            add_error(
-                f"OTP Error {result.error.id}: {result.error.msg} {result.error.message}"
-            )
-
-        if end or retries > REQUEST_RETRIES:
-            error_message.append("max retries reached")
-            result = RoutePlanResults(
-                requestParameters=parameters,
-                error=RoutePlanError(
-                    id=response.status_code,
-                    msg=f"Response {response.status_code}: {response.reason}",
-                    message="\n".join(error_message),
-                ),
-            )
-            return response.url, result
-
-        retries += 1
+            retries += 1
