@@ -10,6 +10,9 @@ import subprocess
 import time
 import urllib.parse
 import urllib.request
+import warnings
+
+import psutil
 
 from otp4gb import centroids, config, cost, gtfs_filter, osmconvert, parameters, util
 
@@ -17,6 +20,7 @@ LOG = logging.getLogger(__name__)
 OTP_VERSION = "2.1.0"
 GRAPH_FILE_NAME = "graph.obj"
 GRAPH_FILE_SUBPATH = f"graphs/filtered/{GRAPH_FILE_NAME}"
+MAX_RETRIES = 10
 
 
 def _java_command(heap):
@@ -60,9 +64,10 @@ def prepare_graph(build_dir: pathlib.Path) -> None:
 
 
 class Server:
+
     def __init__(self, base_dir, port=8080):
         self.base_dir = base_dir
-        self.port = str(port)
+        self.port = int(port)
         self.process = None
 
         self.log_path = (
@@ -72,11 +77,21 @@ class Server:
         self.log_fo = open(self.log_path, "at", encoding="utf-8")
 
     def start(self):
+        LOG.info("Checking for existing OTP server started")
+        server_up = self._check_server(max_retries=0, raise_error=False)
+
+        if server_up:
+            warnings.warn("Server already on so attempting to force shutdown")
+            self.end_java_subprocess()
+
+            if self._check_server(max_retries=0, raise_error=False):
+                raise ValueError("OTP server failed to shut-down")
+
         command = _java_command(config.SERVER_MAX_HEAP) + [
             r"graphs\filtered",
             "--load",
             "--port",
-            self.port,
+            str(self.port),
         ]
         LOG.info("Starting OTP server, log messages saved to '%s'", self.log_path)
         LOG.debug("Running server with %s", " ".join(str(i) for i in command))
@@ -87,10 +102,34 @@ class Server:
         self._check_server()
         LOG.info("OTP server started")
 
-    def _check_server(self):
+    def end_java_subprocess(self):
+        check_name = "java.exe"
+        warnings.warn(
+            f"Killing all processes named {check_name} running on port {self.port}"
+        )
+
+        connections_pids = {
+            i for i in psutil.net_connections() if i.laddr.port == self.port
+        }
+
+        for proc in psutil.process_iter(["pid", "name", "username"]):
+            name = proc.info.get("name")
+            pid = proc.info.get("pid")
+
+            if name != check_name:
+                continue
+
+            if pid in connections_pids:
+                LOG.debug("Killing %s (%s)", name, pid)
+                proc.kill()
+                LOG.debug("Killed")
+
+    def _check_server(
+        self, max_retries: int = MAX_RETRIES, raise_error: bool = True
+    ) -> bool:
         LOG.info("Checking server")
-        TIMEOUT = 30
-        MAX_RETRIES = 10
+        wait_time = 30
+
         server_up = False
         retries = 0
         while not server_up:
@@ -100,14 +139,25 @@ class Server:
                 server_up = True
 
             except urllib.error.URLError as error:
-                if retries > MAX_RETRIES:
-                    raise urllib.error.URLError("Maximum retries exceeded") from error
+                if retries > max_retries:
+                    msg = (
+                        f"Maximum retries ({max_retries}) exceeded for server check "
+                        f"and server not available. Server error: {error}"
+                    )
+                    if raise_error:
+                        raise urllib.error.URLError(msg) from error
+
+                    warnings.warn(msg)
+                    return False
 
                 retries += 1
                 LOG.info(
                     "Server not available. Retry %s. Server error: %s", retries, error
                 )
-                time.sleep(TIMEOUT)
+                time.sleep(wait_time)
+
+        LOG.info("Server up %s", server_up)
+        return server_up
 
     def send_request(self, path="", query=None):
         url = self.get_url(path, query)
@@ -127,7 +177,7 @@ class Server:
         url = urllib.parse.urlunsplit(
             [
                 "http",
-                "localhost:" + self.port,
+                "localhost:" + str(self.port),
                 urllib.parse.urljoin("otp/routers/filtered/", path),
                 qs,
                 None,
@@ -136,13 +186,24 @@ class Server:
         return url
 
     def stop(self):
-        if not self.process or self.process.poll():
+        server_up = self._check_server(raise_error=False)
+
+        if not server_up:
             LOG.info("OTP server is not running")
             return
+
         LOG.info("Stopping OTP server")
         self.process.terminate()
         self.process.wait(timeout=60)
         self.log_fo.close()
+
+        LOG.info(
+            "server_up = %s following initial termination",
+            self._check_server(raise_error=False),
+        )
+        while self._check_server(raise_error=False, max_retries=1):
+            self.end_java_subprocess()
+
         LOG.info("OTP server stopped")
 
 
