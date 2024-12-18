@@ -9,6 +9,7 @@ scipy>=1.10
 tqdm>=4.63
 strictyaml>=1.6
 caf.toolkit>=0.5
+psutil>=6.1
 
 # Dev dependencies
 black
