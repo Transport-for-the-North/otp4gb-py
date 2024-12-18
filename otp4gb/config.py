@@ -44,13 +44,13 @@ class ProcessConfig(ctk.BaseConfig):
     """Class for managing (and parsing) the YAML config file."""
 
     date: datetime.date
-    extents: Bounds
     osm_file: str
     gtfs_files: list[str]
     time_periods: list[TimePeriod]
     modes: list[list[routing.Mode]]
     generalised_cost_factors: cost.GeneralisedCostFactors
     centroids: str
+    extents: Optional[Bounds] = None
     destination_centroids: Optional[str] = None
     iterinary_aggregation_method: cost.AggregationMethod = cost.AggregationMethod.MEAN
     max_walk_distance: int = pydantic.Field(2500, ge=0)
