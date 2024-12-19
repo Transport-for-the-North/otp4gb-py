@@ -9,6 +9,7 @@ import datetime
 import enum
 import logging
 import re
+import time
 from typing import Any, Optional, Union
 from urllib import parse
 
@@ -23,6 +24,7 @@ from shapely import geometry
 LOG = logging.getLogger(__name__)
 ROUTER_API_ROUTE = "otp/routers/default/plan"
 REQUEST_TIMEOUT = 200
+RETRY_WAIT_TIME = 10
 REQUEST_RETRIES = 5
 OTP_ERRORS = {
     "NO_TRANSIT": 406,
@@ -285,3 +287,4 @@ def get_route_itineraries(
                 return response.url, result
 
             retries += 1
+            time.sleep(RETRY_WAIT_TIME)
