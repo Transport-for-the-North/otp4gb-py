@@ -24,8 +24,8 @@ from shapely import geometry
 LOG = logging.getLogger(__name__)
 ROUTER_API_ROUTE = "otp/routers/default/plan"
 REQUEST_TIMEOUT = 200
-RETRY_WAIT_TIME = 10
-REQUEST_RETRIES = 5
+RETRY_WAIT_TIME = 15
+REQUEST_RETRIES = 3
 OTP_ERRORS = {
     "NO_TRANSIT": 406,
     "TOO_CLOSE": 409,
@@ -267,6 +267,11 @@ def get_route_itineraries(
             if response.status_code == requests.codes.OK:
                 result = RoutePlanResults.model_validate_json(response.text)
                 if result.error is None:
+                    result.error = RoutePlanError(
+                        id=response.status_code,
+                        msg=f"Response {response.status_code}: {response.reason}",
+                        message="\n".join(error_message),
+                    )
                     return response.url, result
                 if result.error.id in OTP_ERRORS.values():
                     return response.url, result
