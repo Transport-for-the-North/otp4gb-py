@@ -208,6 +208,9 @@ def count_response_types(path: pathlib.Path):
 
     results_split: dict[str, list[cost.CostResults]] = collections.defaultdict(list)
 
+    error_msgs = set()
+    otp_errors = set()
+
     with open(path, "rt", encoding="utf-8") as file:
         for line in file:
             result = cost.CostResults.model_validate_json(line)
@@ -219,6 +222,12 @@ def count_response_types(path: pathlib.Path):
                     results_split["no itineraries"].append(result)
 
             elif result.error is not None:
+                error_msgs.add(result.error.msg)
+
+                for msg in result.error.message.split("\n"):
+                    msg = re.sub(r"\s*retry \d:\s*", "", msg, flags=re.I)
+                    otp_errors.add(msg)
+
                 results_split["error"].append(result)
 
             else:
@@ -227,6 +236,9 @@ def count_response_types(path: pathlib.Path):
             progress.update(get_str_size(line))
 
     progress.close()
+
+    print("Error Messages\n" + "-" * 20, *error_msgs, sep="\n - ")
+    print("OTP Errors\n" + "-" * 20, *otp_errors, sep="\n - ")
 
     print("Writing output files")
     for nm, results in results_split.items():
