@@ -104,13 +104,9 @@ class Server:
 
     def end_java_subprocess(self):
         check_name = "java.exe"
-        warnings.warn(
-            f"Killing all processes named {check_name} running on port {self.port}"
+        LOG.warning(
+            "Killing all processes named %s running on port %s", check_name, self.port
         )
-
-        connections_pids = {
-            i for i in psutil.net_connections() if i.laddr.port == self.port
-        }
 
         for proc in psutil.process_iter(["pid", "name", "username"]):
             name = proc.info.get("name")
@@ -119,10 +115,22 @@ class Server:
             if name != check_name:
                 continue
 
-            if pid in connections_pids:
-                LOG.debug("Killing %s (%s)", name, pid)
-                proc.kill()
-                LOG.debug("Killed")
+            for conn in proc.net_connections():
+                if conn.laddr.port == self.port:
+                    break
+
+            else:
+                LOG.debug(
+                    "Found process named '%s' (%s) which has no connections on port %s",
+                    name,
+                    pid,
+                    self.port,
+                )
+                continue
+
+            LOG.warning("Killing %s (%s)", name, pid)
+            proc.kill()
+            LOG.debug("Killed")
 
     def _check_server(
         self, max_retries: int = MAX_RETRIES, raise_error: bool = True
@@ -201,8 +209,14 @@ class Server:
             "server_up = %s following initial termination",
             self._check_server(raise_error=False),
         )
+        count = 0
         while self._check_server(raise_error=False, max_retries=1):
+            if count > 10:
+                raise ValueError("error stopping OTP server java process")
+
             self.end_java_subprocess()
+            count += 1
+            time.sleep(60)
 
         LOG.info("OTP server stopped")
 

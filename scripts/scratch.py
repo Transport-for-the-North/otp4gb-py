@@ -216,10 +216,14 @@ def count_response_types(path: pathlib.Path):
             result = cost.CostResults.model_validate_json(line)
 
             if result.plan is not None:
+                suffix = ""
+                if result.error is not None and result.error.message != "":
+                    suffix = " and error"
+
                 if len(result.plan.itineraries) > 0:
-                    results_split["has itineraries"].append(result)
+                    results_split["has itineraries" + suffix].append(result)
                 else:
-                    results_split["no itineraries"].append(result)
+                    results_split["no itineraries" + suffix].append(result)
 
             elif result.error is not None:
                 error_msgs.add(result.error.msg)
@@ -253,7 +257,7 @@ def count_response_types(path: pathlib.Path):
 def main() -> None:
     # check_response_data()
     # filter_responses_data()
-    path = pathlib.Path(".temp/TRANSIT_WALK_costs_20240415T1000-response_data.jsonl")
+    path = pathlib.Path(".temp/3 threads/TRANSIT_WALK_costs_20240415T1000-response_data.jsonl")
     count_response_types(path)
 
 
