@@ -41,10 +41,10 @@ MIN_SECONDS = 60
 # Number of bins to use in histogram plots
 N_BINS = 150
 
-STATISTICS_OUT_PATH = pathlib.Path(os.path.join(os.getcwd()), "outputs")
+STATISTICS_OUT_PATH = pathlib.Path(os.path.join(os.getcwd()), "qa outputs")
 
 
-# # # # CLASSES & FUNTIONS # # # #
+# # # # CLASSES & FUNCTIONS # # # #
 
 def qa_number_itineraries(cm_data: pd.DataFrame) -> Tuple[pd.DataFrame, dict]:
     """
@@ -215,7 +215,7 @@ def main():
     
 if __name__ == "__main__":
     
-    # If a single costs path is provied - just run main for that
+    # If a single costs path is provided - just run main for that
     if isinstance(CM_PATH, pathlib.Path):
         main()
         
