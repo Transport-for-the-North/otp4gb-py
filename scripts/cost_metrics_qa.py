@@ -223,15 +223,24 @@ def main():
 # # # # PROCESS # # # #
 
 if __name__ == "__main__":
-    # If a single costs path is provided - just run main for that
+
+    # If a single costs pathlib.Path is provided - just run main for that
     if isinstance(CM_PATH, pathlib.Path):
+        main()
+
+    # If path has been provided as a raw string, convert to pathlib.Path
+    elif isinstance(CM_PATH, str):
+        CM_PATH = pathlib.Path(CM_PATH)
         main()
 
     # Otherwise, if a list of paths are provided, run main on all paths.
     elif isinstance(CM_PATH, list):
         ALL_PATHS = CM_PATH
         print(f"Detected {len(CM_PATH):,} cost files. Processing iteratively.")
+
         for CM_PATH in ALL_PATHS:
+            if not isinstance(CM_PATH, pathlib.Path):
+                CM_PATH = pathlib.Path(CM_PATH)
             main()
 
     print("\n\nScript complete")
