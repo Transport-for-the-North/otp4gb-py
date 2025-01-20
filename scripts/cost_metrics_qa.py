@@ -1,12 +1,5 @@
 # -*- coding: utf-8 -*-
-"""
-Created on Wed Jan  8 13:24:16 2025
-
-@author: Signalis
-
-Script to provide some QA metrics on BSIP2 cost-metrics dataests
-
-"""
+"""Script to provide some QA metrics on BSIP2 cost-metrics datasets."""
 
 # # # # IMPORTS # # # #
 # sys
