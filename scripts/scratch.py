@@ -4,6 +4,7 @@
 ##### IMPORTS #####
 from __future__ import annotations
 
+import collections
 import enum
 import logging
 import pathlib
@@ -18,6 +19,7 @@ from otp4gb import cost
 LOG = logging.getLogger(__name__)
 
 ##### CLASSES #####
+
 
 ##### FUNCTIONS #####
 def check_response_data():
@@ -87,9 +89,9 @@ def load_bres_tsv():
     bres = pd.read_csv(file, sep="\t", usecols=columns.keys(), dtype=columns)
     bres["Date"].astype(columns["Date"])
 
+
 def get_str_size(s: str) -> int:
     return len(s.encode("utf-8"))
-
 
 
 #### IMPORTANT #####
@@ -125,7 +127,12 @@ def filter_responses_data():
     with open(response_file, "rt", encoding="UTF-8") as file:
         # OPEN OUTPUTS FILE
         with open(filtered_file, "wt", encoding="UTF-8") as output:
-            progress = tqdm(desc="Searching results file", total=file_size, unit="B", unit_scale=True)
+            progress = tqdm(
+                desc="Searching results file",
+                total=file_size,
+                unit="B",
+                unit_scale=True,
+            )
             # ITERATE OVER EVERY PAIR LINE IN THE FILE
             for line in file:
                 progress.update(get_str_size(line))
@@ -145,7 +152,9 @@ def filter_responses_data():
                     # IF THERE IS A MATCH, REMOVE FROM SEARCH & ADD TO FILE
                     patterns.pop(found)
                     output.write(line)
-                    tqdm.write(f"Found {found[0]} to {found[1]}, {len(patterns)} remaining")
+                    tqdm.write(
+                        f"Found {found[0]} to {found[1]}, {len(patterns)} remaining"
+                    )
 
             progress.close()
     # USE JSON LINES VIEWER VS CODE EXTENSION - {} IN TOP RIGHT CREATES A NICER FORMAT TO VIEW
@@ -190,9 +199,66 @@ def filter_responses_data():
     print(f"Written filtered to: {filtered_file}")
 
 
+def count_response_types(path: pathlib.Path):
+
+    file_size = path.stat().st_size
+    progress = tqdm(
+        desc="Searching results file", total=file_size, unit="B", unit_scale=True
+    )
+
+    results_split: dict[str, list[cost.CostResults]] = collections.defaultdict(list)
+
+    error_msgs = set()
+    otp_errors = set()
+
+    with open(path, "rt", encoding="utf-8") as file:
+        for line in file:
+            result = cost.CostResults.model_validate_json(line)
+
+            if result.plan is not None:
+                suffix = ""
+                if result.error is not None and result.error.message != "":
+                    suffix = " and error"
+
+                if len(result.plan.itineraries) > 0:
+                    results_split["has itineraries" + suffix].append(result)
+                else:
+                    results_split["no itineraries" + suffix].append(result)
+
+            elif result.error is not None:
+                error_msgs.add(result.error.msg)
+
+                for msg in result.error.message.split("\n"):
+                    msg = re.sub(r"\s*retry \d:\s*", "", msg, flags=re.I)
+                    otp_errors.add(msg)
+
+                results_split["error"].append(result)
+
+            else:
+                results_split["unknown"].append(result)
+
+            progress.update(get_str_size(line))
+
+    progress.close()
+
+    print("Error Messages\n" + "-" * 20, *error_msgs, sep="\n - ")
+    print("OTP Errors\n" + "-" * 20, *otp_errors, sep="\n - ")
+
+    print("Writing output files")
+    for nm, results in results_split.items():
+        print(f"Found {len(results):,} for {nm}")
+        out_path = path.with_name(path.stem + f"-{nm}.jsonl")
+
+        with open(out_path, "wt", encoding="utf-8") as file:
+            file.writelines(i.json() + "\n" for i in results)
+        print(f"Written : {out_path}")
+
+
 def main() -> None:
     # check_response_data()
-    filter_responses_data()
+    # filter_responses_data()
+    path = pathlib.Path(".temp/3 threads/TRANSIT_WALK_costs_20240415T1000-response_data.jsonl")
+    count_response_types(path)
 
 
 ##### MAIN #####
