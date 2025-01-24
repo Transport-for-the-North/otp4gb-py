@@ -24,7 +24,7 @@ DB_RUN_ID = 121  # only needed if `DB_QA` is True
 DB_NAME = "prod"
 DB_SCHEMA = "bus_data"
 DB_TABLE = "cost_metrics"
-DB_ENGINE = "pg8000",  # or: psycopg2 | pygresql
+DB_ENGINE = ("pg8000",)  # or: psycopg2 | pygresql
 
 # Path to cost metrics dataset OR list of paths to be processed iteratively
 CM_PATH = pathlib.Path(
@@ -59,24 +59,25 @@ if DB_QA:
     DB_HOST = os.getenv("DB_HOST")
     DB_PORT = os.getenv("DB_PORT")
 
+
 # # # # CLASSES & FUNCTIONS # # # #
 
 
 def create_sql_query(
-        schema: str,
-        table: str,
-        run_id: int,
+    schema: str,
+    table: str,
+    run_id: int,
 ) -> str:
     """Creates SQL query to pull data from cost_metrics"""
     return f"SELECT * FROM {schema}.{table} WHERE run_id = {str(run_id)}"
 
 
 def pull_down_cost_metrics(
-        db_conn_url: str,
-        run_id: int,
-        schema: str,
-        table: str,
-) -> pd.DataFrame:
+    db_conn_url: str,
+    run_id: int,
+    schema: str,
+    table: str,
+) -> pd.DataFrame | None:
     """
     Pulls down DB `table` data for specific `run_id` as pd.DataFrame
     """
@@ -107,15 +108,16 @@ def pull_down_cost_metrics(
 
     except Exception as e:
         print(f"Error: {e}")
+        return None
 
 
 def create_db_url(
-        username: str,
-        password: str,
-        host: str,
-        port: str,
-        database_name: str,
-        engine: str,
+    username: str,
+    password: str,
+    host: str,
+    port: str,
+    database_name: str,
+    engine: str,
 ) -> str:
     """
     Creates database connection url as string.
@@ -123,7 +125,9 @@ def create_db_url(
     Format: postgresql+psycopg2://username:password@host:port/database_name
     """
 
-    url_fmt = "postgresql+{engine}://{username}:{password}@{host}:{port}/{database_name}"
+    url_fmt = (
+        "postgresql+{engine}://{username}:{password}@{host}:{port}/{database_name}"
+    )
 
     return url_fmt.format(
         username=username,
@@ -238,9 +242,7 @@ def stats_dict_to_df(
         print(f"Created output dir: {out_path}")
 
     # Convert dict to dataframe - orienting dict keys to index of dataframe rather than columns
-    stats_df = pd.DataFrame.from_dict(
-        stats, orient="index", columns=[f"{filename}"]
-    )
+    stats_df = pd.DataFrame.from_dict(stats, orient="index", columns=[f"{filename}"])
 
     # Export
     stats_df.to_csv((out_path / filename) / save_filename)
@@ -314,9 +316,7 @@ def main(costs_data: pd.DataFrame) -> None:
 # # # # PROCESS # # # #
 
 if __name__ == "__main__":
-
     if DB_QA:
-
         # Create DB connection URL
         conn_url = create_db_url(
             username=DB_USERNAME,
@@ -341,9 +341,10 @@ if __name__ == "__main__":
         main(costs_data=data)
 
     else:  # Must be reading files locally from CM_PATH
-
         if not CM_PATH:
-            raise ValueError("`CM_PATH` is empty. Did you mean to perform QA on DB datasets?")
+            raise ValueError(
+                "`CM_PATH` is empty. Did you mean to perform QA on DB datasets?"
+            )
 
         # If a single costs pathlib.Path is provided - just run main for that
         if isinstance(CM_PATH, pathlib.Path):
