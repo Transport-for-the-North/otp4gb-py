@@ -24,17 +24,24 @@ SCRIPT_NAME = "cost_metrics_qa.py"  # Script to perform QA
 DB_QA = 1  # Perform QA on a TAME DB cost metrics dataset?
 DB_RUN_ID = 121  # run_id to filter out from cost_metrics if doing DB QA
 
+# If DB_QA is True, we don't need these paths as data is in DB.
 LOCAL_PATHS = [
-    pathlib.Path(r"T:\4JH\BSIP2 Scheduled costs\TRANSIT_WALK_costs_20240415T1000-metrics.csv"),
-    pathlib.Path(r"E:\Current Work\ARCHIVED\2023 OTP_Processing\OTP outputs\TRSE OTP Related runs\GM_test\costs\AM\BUS_WALK_costs_20230608T0900-metrics.csv"),
-    pathlib.Path(r"F:\OTP4GB-py\Scheduled Outputs\OTP TT3 BSIP North West - 20240601\costs\AM\TRANSIT_WALK_costs_20240415T0900-metrics.csv"),
+    pathlib.Path(
+        r"T:\4JH\BSIP2 Scheduled costs\TRANSIT_WALK_costs_20240415T1000-metrics.csv"
+    ),
+    pathlib.Path(
+        r"E:\Current Work\ARCHIVED\2023 OTP_Processing\OTP outputs\TRSE OTP Related runs\GM_test\costs\AM\BUS_WALK_costs_20230608T0900-metrics.csv"
+    ),
+    pathlib.Path(
+        r"F:\OTP4GB-py\Scheduled Outputs\OTP TT3 BSIP North West - 20240601\costs\AM\TRANSIT_WALK_costs_20240415T0900-metrics.csv"
+    ),
 ]
 # ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ #
 #########################################################################################
 # THE USER SHOULD ONLY NEED TO UPDATE CM_PATHS WITH FULL PATHS TO cost-metrics.csv FILES #
 
 # Should the test functions be run?
-TEST_FUNCTIONALITY = True
+TEST_FUNCTIONALITY = False
 
 # # # # FUNCTIONS # # # #
 
@@ -47,8 +54,10 @@ def test_db_qa():
     command = [
         "python",
         SCRIPT_NAME,
-        "--db_run_id", str(DB_RUN_ID),
-        "--db_qa", "True",
+        "--db_run_id",
+        str(DB_RUN_ID),
+        "--db_qa",
+        "True",
     ]
 
     # Execute the command
@@ -69,8 +78,10 @@ def test_local_qa():
     command = [
         "python",
         SCRIPT_NAME,
-        "--db_qa", "false",
-        "--local_paths", json.dumps(local_paths),
+        "--db_qa",
+        "false",
+        "--local_paths",
+        json.dumps(local_paths),
     ]
 
     # Execute the command
@@ -86,15 +97,25 @@ def _run_command(command):
 
     def _stream_output(pipe, prefix):
         """Streams outputs from subprocess"""
-        for line in iter(pipe.readline, ''):
-            print(f"{prefix}: {line}", end='')
+        for line in iter(pipe.readline, ""):
+            print(f"{prefix}: {line}", end="")
 
     # Execute the command and capture the output in real-time
-    process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, universal_newlines=True)
+    process = subprocess.Popen(
+        command,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        universal_newlines=True,
+    )
 
     # Create threads to read stdout and stderr
-    stdout_thread = threading.Thread(target=_stream_output, args=(process.stdout, "Output"))
-    stderr_thread = threading.Thread(target=_stream_output, args=(process.stderr, "Error"))
+    stdout_thread = threading.Thread(
+        target=_stream_output, args=(process.stdout, "Output")
+    )
+    stderr_thread = threading.Thread(
+        target=_stream_output, args=(process.stderr, "Error")
+    )
 
     # Start the threads
     stdout_thread.start()
@@ -124,8 +145,12 @@ def main():
     command = [
         "python",
         SCRIPT_NAME,
-        "--db_qa", DB_QA,
-        "--local_paths", json.dumps(local_paths),
+        "--db_qa",
+        str(DB_QA),
+        "--db_run_id",
+        str(DB_RUN_ID),
+        "--local_paths",
+        json.dumps(local_paths),
     ]
 
     # Execute the command

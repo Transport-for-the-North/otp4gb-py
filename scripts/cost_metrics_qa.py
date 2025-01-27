@@ -33,8 +33,20 @@ N_BINS = 150
 
 STATISTICS_OUT_PATH = pathlib.Path(os.path.join(os.getcwd()), "qa outputs")
 
-STR2BOOL_TRUE = ["true", "yes", "t", "y", "1",]
-STR2BOOL_FALSE = ["false", "no", "f", "n", "0"]
+STR2BOOL_TRUE = [
+    "true",
+    "yes",
+    "t",
+    "y",
+    "1",
+]
+STR2BOOL_FALSE = [
+    "false",
+    "no",
+    "f",
+    "n",
+    "0",
+]
 
 # # # # CLASSES & FUNCTIONS # # # #
 
@@ -105,7 +117,7 @@ def parse_args():
     parser.add_argument(
         "--local_paths",
         help="json.dumps() of a List of pathlib.Path objects to "
-             "be read in and QA'd by the process",
+        "be read in and QA'd by the process",
         type=str,
     )
 
@@ -141,7 +153,6 @@ def check_paths(paths: List[pathlib.Path]) -> None:
 
     broken = []
     for _path in paths:
-
         _path = pathlib.Path(_path)
 
         if not _path.is_file():
@@ -169,23 +180,22 @@ def validate_env_vars(env_vars: List[str]) -> None:
             missing.append(env_var)
 
     if missing:
-        raise ValueError(f"Missing environment variables: {' '.join(missing)} "
-                         f"Please go and set these.")
+        raise ValueError(
+            f"Missing environment variables: {' '.join(missing)} "
+            f"Please go and set these."
+        )
 
 
-def create_sql_query(
-    schema: str,
-    table: str,
-    run_id: int,
-    engine
-) -> str:
+def create_sql_query(schema: str, table: str, run_id: int, engine) -> str:
     """Creates SQL query to pull data from cost_metrics using sqlalchemy"""
 
     metadata = sqlalchemy.MetaData(schema=schema)
 
     cost_metrics_table = sqlalchemy.Table(table, metadata, autoload_with=engine)
 
-    return sqlalchemy.select(cost_metrics_table).where(cost_metrics_table.c.run_id == run_id)
+    return sqlalchemy.select(cost_metrics_table).where(
+        cost_metrics_table.c.run_id == run_id
+    )
 
 
 def pull_down_cost_metrics(
@@ -359,8 +369,7 @@ def plot_mean_duration_distribution(
     print(f"Plot exported: {(out_path / filename) / plot_filename}")
 
 
-def main(costs_data: pd.DataFrame,
-         costs_path: pathlib.Path) -> None:
+def main(costs_data: pd.DataFrame, costs_path: pathlib.Path) -> None:
     """main"""
 
     # Assess the types of trips returned
@@ -373,11 +382,6 @@ def main(costs_data: pd.DataFrame,
     combined_stats = itinerary_stats
     combined_stats.update(trip_stats)
 
-    # Convert statistics to pd.DataFrame and export as csv
-    # if DB_QA:
-    #     filename = f"DB_QA_{DB_SCHEMA}.{DB_TABLE}_RUN_ID_{DB_RUN_ID}"
-    # else:
-    #     filename = costs_path.stem
     filename = costs_path.stem
 
     stats_dict_to_df(
@@ -410,7 +414,6 @@ def _run() -> Generator[pd.DataFrame, None, None]:
 
     # If pulling from the database
     if DB_QA:
-
         DB_NAME = args.db_name
         DB_SCHEMA = args.db_schema
         DB_TABLE = args.db_table
@@ -445,7 +448,7 @@ def _run() -> Generator[pd.DataFrame, None, None]:
         )
         print("Data downloaded from database")
 
-        fake_db_path = pathlib.Path(f"DB_QA_{DB_SCHEMA}.{DB_TABLE}_RUN_ID_{DB_RUN_ID}")
+        fake_db_path = pathlib.Path(f"DB_QA_{DB_SCHEMA}-{DB_TABLE}_RUN_ID_{DB_RUN_ID}")
 
         yield _data, fake_db_path
 
@@ -466,7 +469,6 @@ def _run() -> Generator[pd.DataFrame, None, None]:
         print(f"Detected {len(all_paths):,} cost files. Processing iteratively.")
 
         for _path in generate_paths(all_paths):
-
             # Load in data
             print(f"\nReading costs: {_path}")
             _data = pd.read_csv(_path, low_memory=False)
@@ -478,7 +480,6 @@ def _run() -> Generator[pd.DataFrame, None, None]:
 # # # # PROCESS # # # #
 
 if __name__ == "__main__":
-
     # Retrieve relevant datasets
     for data, path in _run():
         if isinstance(data, pd.DataFrame):
