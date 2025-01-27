@@ -3,9 +3,11 @@
 
 # # # # IMPORTS # # # #
 # sys
-from typing import Tuple
+from typing import List, Tuple, Generator
 import os
 import pathlib
+import json
+import argparse
 
 # 3rd party
 import pandas as pd
@@ -14,34 +16,14 @@ import sqlalchemy
 
 # # # # CONSTANTS # # # #
 
-# Should QA be done on a dataset uploaded to the TAME DB, or a local file?
-# True - pulls data from TAME DB.
-# False - reads data from CM_PATH, as a single path or list of paths.
-DB_QA = True
+_ENV_VARS = [
+    "DB_USERNAME",
+    "DB_PASSWORD",
+    "DB_HOST",
+    "DB_PORT",
+]
 
-# What run_id do you want to QA?
-DB_RUN_ID = 121  # only needed if `DB_QA` is True
-DB_NAME = "prod"
-DB_SCHEMA = "bus_data"
-DB_TABLE = "cost_metrics"
-DB_ENGINE = ("pg8000",)  # or: psycopg2 | pygresql
-
-# Path to cost metrics dataset OR list of paths to be processed iteratively
-CM_PATH = pathlib.Path(
-    r"T:\4JH\BSIP2 Scheduled costs\TRANSIT_WALK_costs_20240415T1000-metrics.csv"
-)
-
-# If you want outputs for multiple cost metrics, CM_PATH should be a list of Paths
-# CM_PATH = [
-#     pathlib.Path(r"T:\4JH\BSIP2 Scheduled costs\TRANSIT_WALK_costs_20240415T1000-metrics.csv"),
-#     pathlib.Path(r"E:\Current Work\ARCHIVED\2023 OTP_Processing\OTP outputs\TRSE OTP Related runs\GM_test\costs\AM\BUS_WALK_costs_20230608T0900-metrics.csv"),
-#     pathlib.Path(r"F:\OTP4GB-py\Scheduled Outputs\OTP TT3 BSIP North West - 20240601\costs\AM\TRANSIT_WALK_costs_20240415T0900-metrics.csv"),
-# ]
-# ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ #
-#########################################################################################
-# THE USER SHOULD ONLY NEED TO UPDATE CM_PATH WITH FULL PATHS TO cost-metrics.csv FILES #
-#########################################################################################
-
+DB_DRIVERNAME = "postgresql+pg8000"  # or: psycopg2 | pygresql
 
 # Seconds in a minute
 MIN_SECONDS = 60
@@ -51,25 +33,159 @@ N_BINS = 150
 
 STATISTICS_OUT_PATH = pathlib.Path(os.path.join(os.getcwd()), "qa outputs")
 
-# Store DB details into memory, only if we need them.
-if DB_QA:
-    # DB details should never be stored in a script
-    DB_USERNAME = os.getenv("DB_USERNAME")
-    DB_PASSWORD = os.getenv("DB_PASSWORD")
-    DB_HOST = os.getenv("DB_HOST")
-    DB_PORT = os.getenv("DB_PORT")
-
+STR2BOOL_TRUE = ["true", "yes", "t", "y", "1",]
+STR2BOOL_FALSE = ["false", "no", "f", "n", "0"]
 
 # # # # CLASSES & FUNCTIONS # # # #
+
+
+def str2bool(string):
+    """
+    Appropriately convert a string to boolean
+    """
+
+    if isinstance(string, bool):
+        return string
+
+    if string.strip().lower() in STR2BOOL_TRUE:
+        return True
+    if string.strip().lower() in STR2BOOL_FALSE:
+        return False
+
+
+def parse_args():
+    """
+    Parses command line arguments into Python variables
+    """
+    parser = argparse.ArgumentParser(
+        description="Perform QA metrics on BSIP2 cost-metrics datasets"
+    )
+
+    # Argument to pass QA source - DB or local files
+    parser.add_argument(
+        "--db_qa",
+        "--db",
+        help="Should the QA be performed on a dataset that is in the TAME DB",
+        type=str2bool,
+    )
+
+    # Argument to pass specific run_id to pull from bus_data.cost_metrics
+    parser.add_argument(
+        "--db_run_id",
+        "--run_id",
+        help="Specific run_id to pull from whole cost_metrics table",
+        type=int,
+    )
+
+    # Argument for DB name
+    parser.add_argument(
+        "--db_name",
+        help="What database should be read from i.e. 'prod' (default)",
+        default="prod",
+        type=str,
+    )
+
+    # DB Schema name
+    parser.add_argument(
+        "--db_schema",
+        help="What database schema should be read i.e. 'bus_data' (default)",
+        default="bus_data",
+        type=str,
+    )
+
+    # DB Table name
+    parser.add_argument(
+        "--db_table",
+        help="What database table should be read i.e. `cost_metrics` (default)",
+        default="cost_metrics",
+        type=str,
+    )
+
+    # list of local cost-metrics paths
+    parser.add_argument(
+        "--local_paths",
+        help="json.dumps() of a List of pathlib.Path objects to "
+             "be read in and QA'd by the process",
+        type=str,
+    )
+
+    return parser.parse_args()
+
+
+def validate_parsed_args(args):
+    """
+    Validates args passed via argparse
+    """
+    print(args)
+
+    # If we're NOT doing DB QA, only need variable all_paths
+    if not args.db_qa:
+        if not args.local_paths:
+            raise ValueError("--local_paths must be provided if --db_qa is False")
+    # Must be doing DB QA
+    else:
+        if not args.db_run_id:
+            raise ValueError("--db_run_id is required when --db_qa is True")
+        if not args.db_name:
+            raise ValueError("--db_name is required when --db_qa is True")
+        if not args.db_schema:
+            raise ValueError("--db_schema is required when --db_qa is True")
+        if not args.db_table:
+            raise ValueError("--db_table is required when --db_qa is True")
+
+
+def check_paths(paths: List[pathlib.Path]) -> None:
+    """
+    Checks provided paths exist
+    """
+
+    broken = []
+    for _path in paths:
+
+        _path = pathlib.Path(_path)
+
+        if not _path.is_file():
+            broken.append(str(_path))
+
+    if broken:
+        raise ValueError(f"Files do not exist: {' '.join(broken)}")
+
+
+def generate_paths(paths) -> Generator[pathlib.Path, None, None]:
+    """
+    Generator function to yield each path in the list of paths.
+    """
+    for _path in paths:
+        yield pathlib.Path(_path)
+
+
+def validate_env_vars(env_vars: List[str]) -> None:
+    """
+    `getenv` by default returns None if the env variable isn't set
+    """
+    missing = []
+    for env_var in env_vars:
+        if os.getenv(env_var) is None:
+            missing.append(env_var)
+
+    if missing:
+        raise ValueError(f"Missing environment variables: {' '.join(missing)} "
+                         f"Please go and set these.")
 
 
 def create_sql_query(
     schema: str,
     table: str,
     run_id: int,
+    engine
 ) -> str:
-    """Creates SQL query to pull data from cost_metrics"""
-    return f"SELECT * FROM {schema}.{table} WHERE run_id = {str(run_id)}"
+    """Creates SQL query to pull data from cost_metrics using sqlalchemy"""
+
+    metadata = sqlalchemy.MetaData(schema=schema)
+
+    cost_metrics_table = sqlalchemy.Table(table, metadata, autoload_with=engine)
+
+    return sqlalchemy.select(cost_metrics_table).where(cost_metrics_table.c.run_id == run_id)
 
 
 def pull_down_cost_metrics(
@@ -82,61 +198,29 @@ def pull_down_cost_metrics(
     Pulls down DB `table` data for specific `run_id` as pd.DataFrame
     """
 
-    try:
-        # Create the engine
-        print("Connecting to DB to pull table data...")
-        engine = sqlalchemy.create_engine(db_conn_url)
+    # Create the engine
+    print("Connecting to DB to pull table data...")
+    engine = sqlalchemy.create_engine(db_conn_url)
 
-        # Test the connection
-        with engine.connect() as conn:
-            print("Connection successful")
+    # Test the connection
+    with engine.connect() as conn:
+        print("Connection successful")
 
-        # Formulate query to select data from the passed table
-        query = create_sql_query(
-            schema=schema,
-            table=table,
-            run_id=run_id,
-        )
-
-        # Open connection and retrieve data
-        print("Retrieving data from DB")
-        with engine.connect() as conn:
-            df = pd.read_sql(query, conn)
-            print(f"{schema}.{table} read from {DB_NAME} with:\n{query}")
-
-        return df
-
-    except Exception as e:
-        print(f"Error: {e}")
-        return None
-
-
-def create_db_url(
-    username: str,
-    password: str,
-    host: str,
-    port: str,
-    database_name: str,
-    engine: str,
-) -> str:
-    """
-    Creates database connection url as string.
-
-    Format: postgresql+psycopg2://username:password@host:port/database_name
-    """
-
-    url_fmt = (
-        "postgresql+{engine}://{username}:{password}@{host}:{port}/{database_name}"
-    )
-
-    return url_fmt.format(
-        username=username,
-        password=password,
-        host=host,
-        port=port,
-        database_name=database_name,
+    # Formulate query to select data from the passed table
+    query = create_sql_query(
+        schema=schema,
+        table=table,
+        run_id=run_id,
         engine=engine,
     )
+
+    # Open connection and retrieve data
+    print("Retrieving data from DB")
+    with engine.connect() as conn:
+        df = pd.read_sql(query, conn)
+        print(f"{schema}.{table} read with:\n{query}")
+
+    return df
 
 
 def qa_number_itineraries(cm_data: pd.DataFrame) -> Tuple[pd.DataFrame, dict]:
@@ -231,9 +315,6 @@ def stats_dict_to_df(
        as .csv to out_path / filename
     """
 
-    if DB_QA:
-        filename = filename.strip(".csv")
-
     save_filename = f"{filename}_OTP_cost_metrics_qa_stats.csv"
     print()  # newline in terminal
 
@@ -271,7 +352,6 @@ def plot_mean_duration_distribution(
     plt.ylabel("Frequency")
 
     # Save the plot as a PNG file
-    filename = filename.strip(".csv")  # try remove .csv - present if DB QA
     plot_filename = f"{filename}_mean_duration_distribution.png"
     plt.savefig((out_path / filename) / plot_filename)
     plt.close()
@@ -279,7 +359,8 @@ def plot_mean_duration_distribution(
     print(f"Plot exported: {(out_path / filename) / plot_filename}")
 
 
-def main(costs_data: pd.DataFrame) -> None:
+def main(costs_data: pd.DataFrame,
+         costs_path: pathlib.Path) -> None:
     """main"""
 
     # Assess the types of trips returned
@@ -293,10 +374,11 @@ def main(costs_data: pd.DataFrame) -> None:
     combined_stats.update(trip_stats)
 
     # Convert statistics to pd.DataFrame and export as csv
-    if DB_QA:
-        filename = f"DB_QA_{DB_SCHEMA}.{DB_TABLE}_RUN_ID_{DB_RUN_ID}.csv"
-    else:
-        filename = CM_PATH.stem
+    # if DB_QA:
+    #     filename = f"DB_QA_{DB_SCHEMA}.{DB_TABLE}_RUN_ID_{DB_RUN_ID}"
+    # else:
+    #     filename = costs_path.stem
+    filename = costs_path.stem
 
     stats_dict_to_df(
         stats=combined_stats,
@@ -313,73 +395,94 @@ def main(costs_data: pd.DataFrame) -> None:
     print("_" * 75)
 
 
-# # # # PROCESS # # # #
+def _run() -> Generator[pd.DataFrame, None, None]:
+    """
+    Generator run function to call main with either local data, or DB data.
 
-if __name__ == "__main__":
+    main() accepts a pd.DataFrame dataset, this function should create that
+        pd.DataFrame from a relevant source, and return it for main()
+    """
+
+    args = parse_args()
+    validate_parsed_args(args)
+
+    DB_QA = bool(args.db_qa)
+
+    # If pulling from the database
     if DB_QA:
-        # Create DB connection URL
-        conn_url = create_db_url(
+
+        DB_NAME = args.db_name
+        DB_SCHEMA = args.db_schema
+        DB_TABLE = args.db_table
+        DB_RUN_ID = args.db_run_id
+
+        # DB details should never be stored in a script
+        DB_USERNAME = os.getenv("DB_USERNAME")
+        DB_PASSWORD = os.getenv("DB_PASSWORD")
+        DB_HOST = os.getenv("DB_HOST")
+        DB_PORT = os.getenv("DB_PORT")
+
+        # Check required environment variables have been set correctly
+        validate_env_vars(env_vars=_ENV_VARS)
+
+        conn_url = sqlalchemy.engine.URL.create(
+            drivername=DB_DRIVERNAME,
             username=DB_USERNAME,
             password=DB_PASSWORD,
             host=DB_HOST,
             port=DB_PORT,
-            database_name=DB_NAME,
-            engine="pg8000",
+            database=DB_NAME,
         )
+
         print(f"Using DB url: {conn_url}")
 
         # Download the dataset
-        data = pull_down_cost_metrics(
+        _data = pull_down_cost_metrics(
             db_conn_url=conn_url,
             run_id=DB_RUN_ID,
             schema=DB_SCHEMA,
             table=DB_TABLE,
         )
-        print("Data downloaded")
+        print("Data downloaded from database")
 
-        # Run QA
-        main(costs_data=data)
+        fake_db_path = pathlib.Path(f"DB_QA_{DB_SCHEMA}.{DB_TABLE}_RUN_ID_{DB_RUN_ID}")
 
-    else:  # Must be reading files locally from CM_PATH
-        if not CM_PATH:
-            raise ValueError(
-                "`CM_PATH` is empty. Did you mean to perform QA on DB datasets?"
-            )
+        yield _data, fake_db_path
 
-        # If a single costs pathlib.Path is provided - just run main for that
-        if isinstance(CM_PATH, pathlib.Path):
+    # Must be reading files locally from CM_PATH
+    else:
+        CM_PATHS = json.loads(args.local_paths)
+
+        # convert CM_PATHS to list of paths
+        if isinstance(CM_PATHS, (pathlib.Path, str)):
+            all_paths = [CM_PATHS]
+        else:
+            # Assume CM_PATH is a list or iterable
+            all_paths = CM_PATHS
+
+        # Checks that all paths passed return True to path.is_file()
+        check_paths(all_paths)
+
+        print(f"Detected {len(all_paths):,} cost files. Processing iteratively.")
+
+        for _path in generate_paths(all_paths):
+
             # Load in data
-            print(f"\nReading costs: {CM_PATH}")
-            data = pd.read_csv(CM_PATH)
+            print(f"\nReading costs: {_path}")
+            _data = pd.read_csv(_path, low_memory=False)
             print("Costs read")
 
-            main(costs_data=data)
+            yield _data, _path
 
-        # If path has been provided as a raw string, convert to pathlib.Path
-        elif isinstance(CM_PATH, str):
-            CM_PATH = pathlib.Path(CM_PATH)
 
-            # Load in data
-            print(f"\nReading costs: {CM_PATH}")
-            data = pd.read_csv(CM_PATH)
-            print("Costs read")
+# # # # PROCESS # # # #
 
-            main(costs_data=data)
+if __name__ == "__main__":
 
-        # Otherwise, if a list of paths are provided, run main on all paths.
-        elif isinstance(CM_PATH, list):
-            ALL_PATHS = CM_PATH
-            print(f"Detected {len(CM_PATH):,} cost files. Processing iteratively.")
-
-            for CM_PATH in ALL_PATHS:
-                if not isinstance(CM_PATH, pathlib.Path):
-                    CM_PATH = pathlib.Path(CM_PATH)
-
-                # Load in data
-                print(f"\nReading costs: {CM_PATH}")
-                data = pd.read_csv(CM_PATH)
-                print("Costs read")
-
-                main(costs_data=data)
+    # Retrieve relevant datasets
+    for data, path in _run():
+        if isinstance(data, pd.DataFrame):
+            # Run QA on DataFrame from TAME database
+            main(costs_data=data, costs_path=path)
 
     print("\n\nScript complete")
