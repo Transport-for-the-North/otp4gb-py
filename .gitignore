@@ -1,6 +1,9 @@
 # general dumping ground for stuff
 scratch/
 
+# process qa outputs
+scripts/qa outputs
+
 # Working directory for building zip files
 zip_tmp/
 
