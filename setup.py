@@ -10,7 +10,7 @@ BINARY_FOLDER = pathlib.Path("bin")
 OSM_NAME = "osmconvert64.exe"
 OSMCONVERT_DOWNLOAD_URL = "https://yadi.sk/d/Vnwc4kut3LCBFm"
 # TODO(MB) Find the most up to date version of maven by checking https://dlcdn.apache.org/maven/maven-3
-MAVEN_VERSION = "3.8.8"
+MAVEN_VERSION = "3.8.9"
 MAVEN_PATH = BINARY_FOLDER / f"apache-maven-{MAVEN_VERSION}/bin/mvn"
 MAVEN_DOWNLOAD_URL = (
     f"https://dlcdn.apache.org/maven/maven-3/{MAVEN_VERSION}/"
