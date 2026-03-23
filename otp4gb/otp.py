@@ -99,7 +99,7 @@ class Server:
         )
         atexit.register(self.stop)
         self._check_server()
-        LOG.info("OTP server started")
+        LOG.info("OTP server started at localhost:%s", self.port)
 
     def end_java_subprocess(self):
         check_name = "java.exe"
@@ -235,7 +235,7 @@ def run_server(*, folder: pathlib.Path, prepare: bool, force: bool, **_) -> None
 
         params = config.PrepareConfig.load_yaml(config_path)
         LOG.info("Loaded config from %s\n%s", config_path, params.to_yaml())
-        folder = _prepare(folder, params, force)
+        _prepare(folder, params, force)
 
     server = Server(folder)
     server.start()
