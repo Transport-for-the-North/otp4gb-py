@@ -64,7 +64,6 @@ def prepare_graph(build_dir: pathlib.Path) -> None:
 
 
 class Server:
-
     def __init__(self, base_dir, port=8080):
         self.base_dir = base_dir
         self.port = int(port)
@@ -100,7 +99,7 @@ class Server:
         )
         atexit.register(self.stop)
         self._check_server()
-        LOG.info("OTP server started")
+        LOG.info("OTP server started at localhost:%s", self.port)
 
     def end_java_subprocess(self):
         check_name = "java.exe"
@@ -221,12 +220,22 @@ class Server:
         LOG.info("OTP server stopped")
 
 
-def run_server(*, folder: pathlib.Path, **_) -> None:
+def run_server(*, folder: pathlib.Path, prepare: bool, force: bool, **_) -> None:
     """Run OTP server at given `folder`."""
     LOG.info("Running OTP4GB server")
 
     if not folder.is_dir():
         raise NotADirectoryError(folder)
+
+    if prepare:
+        LOG.info("Preparing OTP graph")
+        config_path = pathlib.Path(folder) / "config.yml"
+        if not config_path.is_file():
+            raise FileNotFoundError("config required for preparing")
+
+        params = config.PrepareConfig.load_yaml(config_path)
+        LOG.info("Loaded config from %s\n%s", config_path, params.to_yaml())
+        _prepare(folder, params, force)
 
     server = Server(folder)
     server.start()
@@ -236,7 +245,9 @@ def run_server(*, folder: pathlib.Path, **_) -> None:
     server.stop()
 
 
-def _prepare(folder: pathlib.Path, params: config.ProcessConfig, force: bool) -> None:
+def _prepare(
+    folder: pathlib.Path, params: config.PrepareConfig, force: bool
+) -> pathlib.Path:
     LOG.info("Running OTP4GB prepare")
 
     graph_file = folder / GRAPH_FILE_SUBPATH
@@ -265,14 +276,17 @@ def _prepare(folder: pathlib.Path, params: config.ProcessConfig, force: bool) ->
 
     graph_file.parent.mkdir(parents=True)
 
-    date_filter_string = "{}:{}".format(params.date, params.date + dt.timedelta(days=1))
-    LOG.debug("date_filter_string is %s", date_filter_string)
-    gtfs_filter.filter_gtfs_files(
-        params.gtfs_files,
-        output_dir=graph_file.parent,
-        date=date_filter_string,
-        extents=params.extents,
-    )
+    if params.gtfs_files is not None:
+        date_filter_string = "{}:{}".format(
+            params.date, params.date + dt.timedelta(days=1)
+        )
+        LOG.debug("date_filter_string is %s", date_filter_string)
+        gtfs_filter.filter_gtfs_files(
+            params.gtfs_files,
+            output_dir=graph_file.parent,
+            date=date_filter_string,
+            extents=params.extents,
+        )
 
     # Crop the osm.pbf map of GB to the bounding box
     osmconvert.osm_convert(
@@ -285,6 +299,7 @@ def _prepare(folder: pathlib.Path, params: config.ProcessConfig, force: bool) ->
     shutil.copy(config.CONF_DIR / "router-config.json", graph_file.parent)
 
     prepare_graph(graph_file.parent)
+    return graph_file.parent
 
 
 def _process(folder: pathlib.Path, save_parameters: bool, params: config.ProcessConfig):
@@ -432,7 +447,7 @@ def run_process(
         params.extents = custom_bounds[bounds]
 
     if prepare or force or not (folder / GRAPH_FILE_SUBPATH).is_file():
-        _prepare(folder, params, force)
+        _prepare(folder, params.prepare_parameters, force)
 
     if prepare:
         LOG.info(

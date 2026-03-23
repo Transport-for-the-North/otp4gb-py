@@ -40,6 +40,22 @@ class TimePeriod(pydantic.BaseModel):  # pylint: disable=no-member
     search_window_minutes: Optional[int] = None
 
 
+class PrepareConfig(ctk.BaseConfig):
+    """Parse the YAML config file for preparing graph only."""
+
+    osm_file: str
+    date: datetime.date
+    gtfs_files: Optional[list[str]] = None
+    extents: Optional[Bounds] = None
+
+    # Makes a classmethod not recognised by pylint, hence disabling self check
+    @pydantic.validator("extents", pre=True)
+    def _extents(cls, value):  # pylint: disable=no-self-argument
+        if not isinstance(value, dict):
+            return value
+        return Bounds.from_dict(value)
+
+
 class ProcessConfig(ctk.BaseConfig):
     """Class for managing (and parsing) the YAML config file."""
 
@@ -77,6 +93,16 @@ class ProcessConfig(ctk.BaseConfig):
             return None
 
         return value
+
+    @property
+    def prepare_parameters(self) -> PrepareConfig:
+        """Parameters for preparing the OTP graph."""
+        return PrepareConfig(
+            osm_file=self.osm_file,
+            gtfs_files=self.gtfs_files,
+            date=self.date,
+            extents=self.extents,
+        )
 
 
 def load_config(folder: pathlib.Path) -> ProcessConfig:
